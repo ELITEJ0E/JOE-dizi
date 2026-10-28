@@ -1,4 +1,5 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
+import { useDeferredScrub } from '../hooks/useDeferredScrub';
 import { Song, SongSection } from '../types/dizi';
 import { ZoomIn, ZoomOut, Maximize2, Minimize2 } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -28,7 +29,6 @@ export const BottomTimeline: React.FC<BottomTimelineProps> = ({
   const [activeTab, setActiveTab] = useState<'timeline' | 'sections' | 'loop'>('timeline');
   const [zoomLevel, setZoomLevel] = useState<number>(100);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
-  const timelineRef = useRef<HTMLDivElement>(null);
 
   const totalNotes = song.notes.length;
   const currentNote = song.notes[activeNoteIndex] || song.notes[0];
@@ -37,25 +37,24 @@ export const BottomTimeline: React.FC<BottomTimelineProps> = ({
     ? Math.min(100, Math.max(0, (currentTimeSeconds || 0) / durationSeconds * 100))
     : totalNotes > 1 ? (activeNoteIndex / (totalNotes - 1)) * 100 : 0;
 
-  const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!timelineRef.current) return;
-    const rect = timelineRef.current.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
-    const ratio = Math.max(0, Math.min(1, clickX / rect.width));
+  const formatTime = (seconds: number) => `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`;
+  const seekToPercent = (percent: number) => {
     if (hasMediaTime && onSeekPercent) {
-      onSeekPercent(ratio * 100);
-      return;
+      onSeekPercent(percent);
+    } else if (totalNotes > 0) {
+      onSeekToNote(Math.round(percent / 100 * (totalNotes - 1)));
     }
-    if (totalNotes === 0) return;
-    const targetIdx = Math.round(ratio * (totalNotes - 1));
-    onSeekToNote(targetIdx);
   };
+  const scrub = useDeferredScrub(
+    progressPercent,
+    seekToPercent,
+    percent => hasMediaTime ? formatTime(percent / 100 * durationSeconds) : `${Math.round(percent / 100 * Math.max(0, totalNotes - 1)) + 1} / ${totalNotes}`
+  );
 
   const handleSectionClick = (section: SongSection) => {
     onSeekToMeasure(section.startMeasure);
   };
 
-  const formatTime = (seconds: number) => `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`;
   const timeTicks = Array.from({ length: 5 }, (_, i) => formatTime((hasMediaTime ? durationSeconds : totalNotes * 60 / Math.max(song.bpm, 1)) * i / 4));
 
   return (
@@ -173,14 +172,21 @@ export const BottomTimeline: React.FC<BottomTimelineProps> = ({
 
       {/* 3. Interactive Note Density & Scrubber Track */}
       <div
-        ref={timelineRef}
-        onClick={handleTimelineClick}
-        className="relative h-4 bg-[#111D20] border border-[#1A2E33] rounded-md px-2 flex items-center cursor-pointer group"
+        ref={scrub.trackRef}
+        {...scrub.handlers}
+        role="slider"
+        tabIndex={0}
+        aria-label={t('Timeline seek: drag to preview and release to jump', '时间轴：拖动预览，松开跳转')}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(progressPercent)}
+        aria-valuetext={hasMediaTime ? formatTime((currentTimeSeconds || 0)) : `${activeNoteIndex + 1} / ${totalNotes}`}
+        className={`joe-deferred-scrub relative h-6 bg-[#111D20] border border-[#1A2E33] rounded-md px-2 flex items-center cursor-ew-resize touch-none group focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#B4F45A] ${scrub.dragging ? 'scrubbing' : ''}`}
       >
         {/* Playhead Vertical Line */}
         <div
           className="absolute top-0 bottom-0 w-0.5 bg-[#B4F45A] shadow-[0_0_10px_#B4F45A] pointer-events-none z-20 transition-all duration-75"
-          style={{ left: `${progressPercent}%` }}
+          style={{ left: 'var(--seek-percent, 0%)' }}
         >
           {/* Top marker indicator */}
           <div className="absolute -top-1 -left-1 w-2.5 h-2.5 rounded-full bg-[#B4F45A] shadow-md" />
