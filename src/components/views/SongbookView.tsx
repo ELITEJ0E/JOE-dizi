@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Song } from '../../types/dizi';
 import { PRESET_SONGS } from '../../data/presetSongs';
+import { readUserSongs } from '../../utils/songStorage';
 import { BookMarked, Search, Play, Download, Upload, Music, Sparkles } from 'lucide-react';
 
 interface SongbookViewProps {
@@ -13,7 +14,7 @@ export const SongbookView: React.FC<SongbookViewProps> = ({
   onSelectSong
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [songs, setSongs] = useState<Song[]>(PRESET_SONGS);
+  const [songs, setSongs] = useState<Song[]>(() => [...readUserSongs(), ...PRESET_SONGS]);
 
   const filteredSongs = songs.filter(
     s =>
