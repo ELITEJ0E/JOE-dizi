@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { Song } from '../types/dizi';
 import {
   Play,
@@ -10,12 +10,12 @@ import {
   Sliders,
   Volume2,
   VolumeX,
-  Target,
   Menu
 } from 'lucide-react';
 import { diziAudio } from '../audio/diziSynth';
 import { StudioSelect } from './StudioSelect';
 import { PWAInstallButton } from './PWAInstallButton';
+import { DeferredWaveformScrubber } from './DeferredWaveformScrubber';
 import { useLanguage } from '../i18n/LanguageContext';
 
 interface TopTransportBarProps {
@@ -30,11 +30,10 @@ interface TopTransportBarProps {
   onSpeedChange: (speed: number) => void;
   isLooping: boolean;
   onLoopToggle: () => void;
-  isPracticeMode: boolean;
-  onPracticeModeToggle: () => void;
   onOpenExport: () => void;
   onOpenSettings: () => void;
   progressPercent: number; // 0 to 100
+  durationSeconds: number;
   currentTimeFormatted: string; // e.g. "01:24"
   totalDurationFormatted: string; // e.g. "03:42"
   onSeek: (percent: number) => void;
@@ -53,11 +52,10 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
   onSpeedChange,
   isLooping,
   onLoopToggle,
-  isPracticeMode,
-  onPracticeModeToggle,
   onOpenExport,
   onOpenSettings,
   progressPercent,
+  durationSeconds,
   currentTimeFormatted,
   totalDurationFormatted,
   onSeek,
@@ -65,23 +63,6 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
 }) => {
   const { t } = useLanguage();
   const [isMuted, setIsMuted] = useState(false);
-  const waveformRef = useRef<HTMLDivElement>(null);
-
-  // Generate simulated waveform peaks
-  const waveformBars = [
-    12, 18, 28, 45, 60, 35, 75, 90, 80, 50, 65, 85, 95, 70, 55, 40,
-    30, 48, 70, 85, 60, 92, 100, 75, 50, 65, 80, 45, 30, 20, 35, 55,
-    70, 85, 95, 65, 40, 55, 75, 90, 80, 60, 45, 30, 20, 15, 25, 40
-  ];
-
-  const handleWaveformClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!waveformRef.current) return;
-    const rect = waveformRef.current.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
-    const percent = Math.max(0, Math.min(100, (clickX / rect.width) * 100));
-    onSeek(percent);
-  };
-
   const handleToggleMute = () => {
     diziAudio.isMuted = !isMuted;
     setIsMuted(!isMuted);
@@ -172,39 +153,15 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
           <span>{totalDurationFormatted}</span>
         </div>
 
-        {/* Audio Waveform Scrubber */}
-        <div
-          ref={waveformRef}
-          onClick={handleWaveformClick}
-          className="joe-transport-hide-mobile flex-1 min-w-8 h-5 bg-[#111D20] border border-[#1A2E33] rounded-md px-1.5 flex items-center gap-0.5 cursor-pointer relative group overflow-hidden"
-          title={t('Click to seek', '点击跳转')}
-        >
-          {/* Progress fill overlay */}
-          <div
-            className="absolute left-0 top-0 bottom-0 bg-[#B4F45A]/10 pointer-events-none"
-            style={{ width: `${progressPercent}%` }}
-          />
-          {/* Green playhead indicator line */}
-          <div
-            className="absolute top-0 bottom-0 w-0.5 bg-[#B4F45A] shadow-[0_0_8px_#B4F45A] pointer-events-none z-10 transition-all duration-75"
-            style={{ left: `${progressPercent}%` }}
-          />
-
-          {waveformBars.map((height, i) => {
-            const barPercent = (i / waveformBars.length) * 100;
-            const isPassed = barPercent <= progressPercent;
-            return (
-              <div
-                key={i}
-                className="flex-1 rounded-full transition-all duration-100"
-                style={{
-                  height: `${Math.max(15, height * 0.7)}%`,
-                  backgroundColor: isPassed ? '#B4F45A' : '#2A3C41'
-                }}
-              />
-            );
-          })}
-        </div>
+        {/* Responsive desktop waveform: drag previews locally and seeks once on release. */}
+        <DeferredWaveformScrubber
+          progressPercent={progressPercent}
+          durationSeconds={durationSeconds}
+          onSeek={onSeek}
+          disabled={!playbackAvailable}
+          className="joe-transport-desktop-seek joe-transport-hide-mobile"
+          ariaLabel={t('Drag to seek; release to jump', '拖动预览，松开跳转')}
+        />
 
         {/* Unified accessible dropdown — default speed is 1.0x. */}
         <StudioSelect
@@ -247,23 +204,6 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
       {/* 3. Right Zone: Action buttons */}
       <div className="joe-transport-right order-2 lg:order-none flex items-center gap-1 sm:gap-1.5 shrink-0">
         <PWAInstallButton />
-        {/* Practice Mode Toggle */}
-        <button
-          onClick={onPracticeModeToggle}
-          className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-            isPracticeMode
-              ? 'bg-[#16272C] border-[#B4F45A] text-[#B4F45A]'
-              : 'bg-[#111D20] border-[#1A2E33] text-[#94A3A7] hover:text-[#F3F5F4]'
-          }`}
-        >
-          <span
-            className={`w-2 h-2 rounded-full ${
-              isPracticeMode ? 'bg-[#B4F45A] shadow-[0_0_6px_#B4F45A]' : 'bg-[#4B5E63]'
-            }`}
-          />
-          <span className="hidden 2xl:inline">{t('Practice mode', '练习模式')}</span>
-        </button>
-
         {/* Export Sheet Button */}
         <button
           onClick={onOpenExport}
@@ -281,6 +221,18 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
         >
           <Sliders className="w-4 h-4" />
         </button>
+      </div>
+      {/* Mobile seek remains accessible below the compact transport controls. */}
+      <div className="joe-transport-mobile-seek-row md:hidden">
+        <span className="joe-transport-time">{currentTimeFormatted}</span>
+        <DeferredWaveformScrubber
+          progressPercent={progressPercent}
+          durationSeconds={durationSeconds}
+          onSeek={onSeek}
+          disabled={!playbackAvailable}
+          ariaLabel={t('Drag to seek; release to jump', '拖动预览，松开跳转')}
+        />
+        <span className="joe-transport-time">{totalDurationFormatted}</span>
       </div>
     </header>
   );
