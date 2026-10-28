@@ -270,7 +270,7 @@ export const SheetMusicView: React.FC<SheetMusicViewProps> = ({
                                 <div className="absolute -top-2 left-1/2 w-8 h-2 border-t-2 border-[#3E4947] rounded-t-full pointer-events-none" />
                               )}
 
-                              <span className="text-xl font-serif font-bold text-[#1D2928] leading-none">
+                              <span className="text-[16px] sm:text-xl font-serif font-bold text-[#1D2928] leading-none">
                                 {note.jianpu}
                               </span>
                               {note.confidence !== undefined && note.confidence < 0.35 && (
@@ -314,7 +314,7 @@ export const SheetMusicView: React.FC<SheetMusicViewProps> = ({
 
                             {/* Lyrics under note if present */}
                             {note.lyric && (
-                              <span className="text-[11px] font-calligraphy text-[#44504E] mt-1">
+                              <span className="text-[9px] sm:text-[11px] font-calligraphy text-[#44504E] mt-0.5 sm:mt-1 leading-tight">
                                 {note.lyric}
                               </span>
                             )}
