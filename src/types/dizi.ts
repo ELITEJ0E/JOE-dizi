@@ -65,6 +65,7 @@ export interface DiziNote {
   register?: BreathRegister;
   startTime?: number;         // Seconds in the source audio/video, when transcribed from audio
   durationSeconds?: number;   // Actual detected note length before beat quantization
+  confidence?: number;        // Spectral candidate separation (NOT instrument identification)
 }
 
 export interface SongSection {

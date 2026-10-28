@@ -170,7 +170,7 @@ export const SheetMusicView: React.FC<SheetMusicViewProps> = ({
                                 ? 'bg-[#B4F45A]/35 ring-1 ring-[#36B39B]'
                                 : 'hover:bg-black/5'
                             }`}
-                            title={`Note: ${note.pitch} (${note.jianpu})`}
+                            title={`Note: ${note.pitch} (${note.jianpu})${note.confidence !== undefined && note.confidence < 0.35 ? ' · Review uncertain pitch' : ''}`}
                           >
                             {/* Active Down Arrow Marker (as seen in screenshot) */}
                             {isActive && (
@@ -210,6 +210,9 @@ export const SheetMusicView: React.FC<SheetMusicViewProps> = ({
                               <span className="text-xl sm:text-2xl font-serif font-bold text-[#1D2928] leading-none">
                                 {note.jianpu}
                               </span>
+                              {note.confidence !== undefined && note.confidence < 0.35 && (
+                                <span title="Low spectral separation — review against the audio" className="absolute -right-2.5 -top-2 text-xs font-bold text-amber-700">?</span>
+                              )}
 
                               {/* Dotted note dot */}
                               {note.isDotted && (
@@ -236,6 +239,12 @@ export const SheetMusicView: React.FC<SheetMusicViewProps> = ({
                                 <div className="w-full h-[1.5px] bg-[#1D2928]" />
                               )}
                               {note.duration <= 0.25 && (
+                                <div className="w-full h-[1.5px] bg-[#1D2928]" />
+                              )}
+                              {note.duration <= 0.125 && (
+                                <div className="w-full h-[1.5px] bg-[#1D2928]" />
+                              )}
+                              {note.duration <= 0.0625 && (
                                 <div className="w-full h-[1.5px] bg-[#1D2928]" />
                               )}
                             </div>

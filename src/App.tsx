@@ -60,23 +60,30 @@ export default function App() {
   // Playback step timer ref
   const playbackTimerRef = useRef<number | null>(null);
   const localAudioRef = useRef<HTMLAudioElement | null>(null);
+  const lastRenderedAudioClockRef = useRef(-1);
 
   const hasYouTube = Boolean(currentSong.youtubeVideoId);
   const hasLocalAudio = Boolean(currentSong.audioUrl) && !hasYouTube;
   const usesSourcePlayback = hasYouTube || hasLocalAudio;
 
   const onMediaClock = useCallback((seconds: number, duration: number) => {
-    if (Number.isFinite(seconds)) setMediaTime(seconds);
+    // The live note highlight needs ~60 Hz precision for 30–50ms ornaments;
+    // the heavier time labels/waveform only need a refresh every ~80ms.
+    if (Number.isFinite(seconds) && (lastRenderedAudioClockRef.current < 0 || Math.abs(seconds - lastRenderedAudioClockRef.current) > 0.08)) {
+      lastRenderedAudioClockRef.current = seconds;
+      setMediaTime(seconds);
+    }
     if (Number.isFinite(duration) && duration > 0) setMediaDuration(duration);
     const notes = currentSong.notes;
     if (!notes.length || notes[0].startTime === undefined) return;
     let index = -1;
-    for (let i = 0; i < notes.length; i++) {
-      if ((notes[i].startTime ?? Infinity) <= seconds) {
-        if (seconds <= (notes[i].startTime ?? 0) + (notes[i].durationSeconds ?? 0) + 0.06) index = i;
-      }
-      else break;
+    let low = 0, high = notes.length - 1;
+    while (low <= high) {
+      const mid = Math.floor((low + high) / 2);
+      if ((notes[mid].startTime ?? Infinity) <= seconds) { index = mid; low = mid + 1; }
+      else high = mid - 1;
     }
+    if (index >= 0 && seconds > (notes[index].startTime ?? 0) + (notes[index].durationSeconds ?? 0) + 0.025) index = -1;
     setActiveNoteIndex(previous => previous === index ? previous : index);
   }, [currentSong.notes]);
 
@@ -88,6 +95,7 @@ export default function App() {
     setFingeringSystem(song.fingeringSystem);
     setActiveNoteIndex(0);
     setMediaTime(0);
+    lastRenderedAudioClockRef.current = -1;
     setMediaDuration(song.audioDuration || 0);
     setYoutubeSeekRequest(null);
     setCurrentView('transcribe');
@@ -215,6 +223,21 @@ export default function App() {
       localAudioRef.current.loop = isLooping;
     }
   }, [playbackSpeed, isLooping, currentSong.audioUrl]);
+
+  // HTMLAudioElement's `timeupdate` event only fires a few times each second,
+  // which makes rapid dizi fingering changes impossible to follow. Use the
+  // actual media clock on animation frames while the recording is playing.
+  useEffect(() => {
+    if (!hasLocalAudio || !isPlaying) return;
+    let frame: number;
+    const tick = () => {
+      const audio = localAudioRef.current;
+      if (audio && Number.isFinite(audio.currentTime)) onMediaClock(audio.currentTime, audio.duration);
+      frame = window.requestAnimationFrame(tick);
+    };
+    frame = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(frame);
+  }, [hasLocalAudio, isPlaying, onMediaClock]);
 
   // Release the previous local recording once it is no longer referenced.
   const lastObjectUrlRef = useRef<string | null>(null);

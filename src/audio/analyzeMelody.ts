@@ -1,7 +1,8 @@
 import { pitchDetector, PitchRange } from './pitchDetector';
 import { midiToFrequency } from '../music/diziTheory';
 
-export type DetectedMelodyNote = { pitch: string; midi: number; startTime: number; duration: number };
+export type DetectedMelodyNote = { pitch: string; midi: number; startTime: number; duration: number; confidence?: number };
+export interface MelodyAnalysis { notes: DetectedMelodyNote[]; estimatedBpm?: number }
 
 /** Downsample and mix the recording before transferring it to a background worker. */
 function makeAnalysisSamples(buffer: AudioBuffer, range?: PitchRange): { samples: Float32Array; sampleRate: number } {
@@ -36,9 +37,12 @@ function makeAnalysisSamples(buffer: AudioBuffer, range?: PitchRange): { samples
   return { samples, sampleRate: targetRate };
 }
 
-export function analyzeMelodyInBackground(buffer: AudioBuffer, onProgress?: (percent: number) => void, range?: PitchRange): Promise<DetectedMelodyNote[]> {
+export function analyzeMelodyInBackground(buffer: AudioBuffer, onProgress?: (percent: number) => void, range?: PitchRange): Promise<MelodyAnalysis> {
   if (typeof Worker === 'undefined') {
-    return Promise.resolve(pitchDetector.analyzeMelodyFromAudioBuffer(buffer, range));
+    const { samples, sampleRate } = makeAnalysisSamples(buffer, range);
+    let estimatedBpm: number | undefined;
+    const notes = pitchDetector.analyzeMelodyFromSamples(samples, sampleRate, onProgress, range, bpm => { estimatedBpm = bpm; });
+    return Promise.resolve({ notes, estimatedBpm });
   }
   const { samples, sampleRate } = makeAnalysisSamples(buffer, range);
   return new Promise((resolve, reject) => {
@@ -46,16 +50,16 @@ export function analyzeMelodyInBackground(buffer: AudioBuffer, onProgress?: (per
     const timeout = window.setTimeout(() => {
       worker.terminate();
       reject(new Error('Analysis timed out. Try a shorter or simpler melody.'));
-    }, 120000);
+    }, Math.max(120000, Math.min(15 * 60 * 1000, buffer.duration * 1000)));
     const finish = () => {
       window.clearTimeout(timeout);
       worker.terminate();
     };
-    worker.onmessage = (event: MessageEvent<{ type: string; percent?: number; notes?: DetectedMelodyNote[]; message?: string }>) => {
+    worker.onmessage = (event: MessageEvent<{ type: string; percent?: number; notes?: DetectedMelodyNote[]; estimatedBpm?: number; message?: string }>) => {
       if (event.data.type === 'progress') onProgress?.(event.data.percent || 0);
       if (event.data.type === 'result') {
         finish();
-        resolve(event.data.notes || []);
+        resolve({ notes: event.data.notes || [], estimatedBpm: event.data.estimatedBpm });
       } else if (event.data.type === 'error') {
         finish();
         reject(new Error(event.data.message || 'Pitch analysis failed.'));
