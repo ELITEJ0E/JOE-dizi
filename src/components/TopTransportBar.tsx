@@ -90,9 +90,9 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
   const speeds = [0.5, 0.75, 1.0, 1.25, 1.5];
 
   return (
-    <header className={`bg-[#0B1014] border-b border-[#16272C] px-2 sm:px-3 py-1.5 flex flex-wrap lg:flex-nowrap items-center justify-between gap-1.5 lg:gap-2 select-none shrink-0 ${className}`}>
+    <header className={`joe-dizi-transport bg-[#0B1014] border-b border-[#16272C] px-2 sm:px-3 py-1.5 flex flex-wrap lg:flex-nowrap items-center justify-between gap-1.5 lg:gap-2 select-none shrink-0 ${className}`}>
       {/* 1. Left Zone: Current Song Card */}
-      <div className="flex items-center gap-2 min-w-0 flex-1 lg:flex-none lg:w-[clamp(140px,17vw,235px)] max-w-[245px]">
+      <div className="joe-transport-song flex items-center gap-2 min-w-0 flex-1 lg:flex-none lg:w-[clamp(140px,17vw,235px)] max-w-[245px]">
         {onOpenMobileMenu && <button onClick={onOpenMobileMenu} aria-label={t('Open navigation', '打开导航')} className="md:hidden rounded-lg border border-[#1A2E33] p-1.5 text-[#B4F45A] shrink-0"><Menu className="w-4 h-4" /></button>}
         {/* Album Art / Traditional Pagoda & Moon thumbnail */}
         <div className="relative w-8 h-8 rounded-lg bg-[#111D20] border border-[#1A2E33] overflow-hidden flex items-center justify-center shrink-0 shadow-md">
@@ -132,7 +132,7 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
       </div>
 
       {/* 2. Center Zone: Playback Transport & Waveform */}
-      <div className="order-3 lg:order-none w-full lg:w-auto flex-1 max-w-full flex items-center gap-1.5 lg:gap-2.5 min-w-0">
+      <div className="joe-transport-playback order-3 lg:order-none w-full lg:w-auto flex-1 max-w-full flex items-center gap-1.5 lg:gap-2.5 min-w-0">
         {/* Transport buttons */}
         <div className="flex items-center gap-1 shrink-0">
           <button
@@ -166,7 +166,7 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
         </div>
 
         {/* Timestamp: 01:24 / 03:42 */}
-        <div className="font-mono text-[10px] sm:text-[11px] tabular-nums text-[#94A3A7] shrink-0">
+        <div className="joe-transport-hide-mobile font-mono text-[10px] sm:text-[11px] tabular-nums text-[#94A3A7] shrink-0">
           <span className="text-[#F3F5F4] font-medium">{currentTimeFormatted}</span>
           <span className="text-[#4E5C60] mx-1">/</span>
           <span>{totalDurationFormatted}</span>
@@ -176,7 +176,7 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
         <div
           ref={waveformRef}
           onClick={handleWaveformClick}
-          className="flex-1 min-w-8 h-5 bg-[#111D20] border border-[#1A2E33] rounded-md px-1.5 flex items-center gap-0.5 cursor-pointer relative group overflow-hidden"
+          className="joe-transport-hide-mobile flex-1 min-w-8 h-5 bg-[#111D20] border border-[#1A2E33] rounded-md px-1.5 flex items-center gap-0.5 cursor-pointer relative group overflow-hidden"
           title={t('Click to seek', '点击跳转')}
         >
           {/* Progress fill overlay */}
@@ -245,7 +245,7 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
       </div>
 
       {/* 3. Right Zone: Action buttons */}
-      <div className="order-2 lg:order-none flex items-center gap-1 sm:gap-1.5 shrink-0">
+      <div className="joe-transport-right order-2 lg:order-none flex items-center gap-1 sm:gap-1.5 shrink-0">
         <PWAInstallButton />
         {/* Practice Mode Toggle */}
         <button
