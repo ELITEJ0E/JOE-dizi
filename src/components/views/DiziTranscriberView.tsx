@@ -5,6 +5,8 @@ import { analyzeMelodyInBackground } from '../../audio/analyzeMelody';
 import { midiToPitchName, findFingering, DIZI_KEYS_SPEC, getJianpuForMidi, pitchNameToMidi, midiToFrequency } from '../../music/diziTheory';
 import { diziAudio } from '../../audio/diziSynth';
 import { getShareMetadata, parseMediaSource } from '../../utils/mediaSources';
+import { fetchSunoAudio } from '../../utils/sunoImport';
+import { saveAudioFile } from '../../utils/audioLibrary';
 import { StudioSelect } from '../StudioSelect';
 import {
   Upload,
@@ -52,7 +54,7 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
 
   useEffect(() => () => pitchDetector.stopMicrophone(), []);
 
-  const transcribeFile = async (file: File) => {
+  const transcribeFile = async (file: File, linkedSong?: Song) => {
     setIsProcessing(true);
     setStatusError(false);
     setStatusMessage(`Decoding audio file "${file.name}"...`);
@@ -91,14 +93,15 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
         };
       });
 
-      const attachesToLink = (currentSong.source === 'youtube' || currentSong.source === 'suno');
+      const baseSong = linkedSong || currentSong;
+      const attachesToLink = (baseSong.source === 'youtube' || baseSong.source === 'suno');
       const newSong: Song = {
-        ...currentSong,
-        id: attachesToLink ? currentSong.id : `transcription_${Date.now()}`,
-        titleEn: attachesToLink ? currentSong.titleEn : file.name.replace(/\.[^/.]+$/, ''),
-        titleZh: attachesToLink ? currentSong.titleZh : '新转谱乐曲',
-        source: attachesToLink ? currentSong.source : 'upload',
-        sourceDetails: `${attachesToLink ? currentSong.source === 'youtube' ? 'YouTube' : 'Suno' : 'Audio File'} • Audio analyzed`,
+        ...baseSong,
+        id: attachesToLink ? baseSong.id : `transcription_${Date.now()}`,
+        titleEn: attachesToLink ? baseSong.titleEn : file.name.replace(/\.[^/.]+$/, ''),
+        titleZh: attachesToLink ? baseSong.titleZh : '新转谱乐曲',
+        source: attachesToLink ? baseSong.source : 'upload',
+        sourceDetails: `${attachesToLink ? baseSong.source === 'youtube' ? 'YouTube' : 'Suno' : 'Audio File'} • Audio analyzed`,
         audioUrl: URL.createObjectURL(file),
         audioDuration: audioBuffer.duration,
         bpm,
@@ -106,14 +109,15 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
         sections: [],
         totalMeasures: Math.max(...notes.map(note => note.measureNumber), 1),
       };
+      const savedOffline = await saveAudioFile(newSong.id, file);
       onLoadSong(newSong);
       const uncertainCount = notes.filter(note => note.confidence !== undefined && note.confidence < 0.35).length;
-      setStatusMessage(`Found ${notes.length} candidate melody events${estimatedBpm ? ` at ≈${estimatedBpm} BPM` : ''}, including fast ornaments. ${uncertainCount} ambiguous pitch candidates are marked '?' for review. Full mixes can contain other instruments; use an isolated dizi stem for the most reliable results.`);
+      setStatusMessage(`Found ${notes.length} candidate melody events${estimatedBpm ? ` at ≈${estimatedBpm} BPM` : ''}, including fast ornaments. ${uncertainCount} ambiguous pitches are marked '?' for review. ${savedOffline ? 'Audio and score saved on this device.' : 'Score saved; browser storage did not accept the audio file.'} Full mixes may require an isolated dizi stem.`);
       setStatusError(false);
     } catch (err) {
       console.error('Audio transcription failed', err);
       setStatusError(true);
-      setStatusMessage('Unable to decode this file. Try a standard MP3 or WAV recording.');
+      setStatusMessage('Unable to decode this audio stream. For Suno, download the actual MP3/WAV from your Suno account and attach it; encrypted or protected playback streams cannot be decoded here.');
     } finally {
       if (ctx) await ctx.close().catch(() => {});
       setIsProcessing(false);
@@ -138,32 +142,50 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
     setIsProcessing(true);
     setStatusError(false);
     setStatusMessage(`Importing ${source.kind === 'youtube' ? 'YouTube video' : 'Suno song'}…`);
-    const metadata = await getShareMetadata(source);
-    const newSong: Song = {
-      ...currentSong,
-      id: `${source.kind}_${source.id}`,
-      titleEn: metadata.title || (source.kind === 'youtube' ? `YouTube video ${source.id}` : `Suno track ${source.id.slice(0, 8)}`),
-      titleZh: '',
-      artistEn: metadata.artist || '',
-      artistZh: '',
-      source: source.kind,
-      sourceUrl: source.url,
-      youtubeVideoId: source.kind === 'youtube' ? source.id : undefined,
-      sunoClipId: source.kind === 'suno' ? source.id : undefined,
-      sourceDetails: source.kind === 'youtube' ? 'YouTube • Embedded playback' : 'Suno • Link imported',
-      imageUrl: metadata.thumbnail || (source.kind === 'youtube' ? `https://i.ytimg.com/vi/${source.id}/hqdefault.jpg` : undefined),
-      audioUrl: undefined,
-      audioDuration: undefined,
-      notes: [],
-      sections: [],
-      totalMeasures: 0,
-    };
-    onLoadSong(newSong);
-    setIsProcessing(false);
-    setStatusMessage(source.kind === 'youtube'
-      ? 'YouTube player loaded. To create a real note-by-note dizi score, attach a matching audio recording below.'
-      : 'Suno song link imported. Attach the audio file downloaded from your Suno account to transcribe it.');
-    setTranscribeMethod('upload');
+    try {
+      const metadata = await getShareMetadata(source);
+      const newSong: Song = {
+        ...currentSong,
+        id: `${source.kind}_${source.id}`,
+        titleEn: metadata.title || (source.kind === 'youtube' ? `YouTube video ${source.id}` : `Suno track ${source.id.slice(0, 8)}`),
+        titleZh: '',
+        artistEn: metadata.artist || '',
+        artistZh: '',
+        source: source.kind,
+        sourceUrl: source.url,
+        youtubeVideoId: source.kind === 'youtube' ? source.id : undefined,
+        sunoClipId: source.kind === 'suno' ? source.id : undefined,
+        sourceDetails: source.kind === 'youtube' ? 'YouTube • Embedded playback' : 'Suno • Link imported',
+        imageUrl: source.kind === 'youtube' ? metadata.thumbnail || `https://i.ytimg.com/vi/${source.id}/hqdefault.jpg` : undefined,
+        audioUrl: undefined,
+        audioDuration: undefined,
+        notes: [],
+        sections: [],
+        totalMeasures: 0,
+      };
+
+      if (source.kind === 'suno') {
+        setStatusMessage('Suno link recognized. Retrieving playable audio for automatic transcription…');
+        const audio = await fetchSunoAudio(source.id, newSong.titleEn);
+        if (audio) {
+          await transcribeFile(audio, newSong);
+          return;
+        }
+        onLoadSong(newSong);
+        setStatusError(true);
+        setStatusMessage('Suno link saved, but this track has no browser-accessible, downloadable audio. Open your Suno Library → Download, then attach the MP3/WAV here. A share page or protected stream cannot be transcribed as audio.');
+      } else {
+        onLoadSong(newSong);
+        setStatusMessage('YouTube video loaded and link saved locally. Attach an authorized matching audio file to generate dizi notes; the YouTube iframe cannot provide raw audio samples.');
+      }
+      setTranscribeMethod('upload');
+    } catch (error) {
+      console.error('Song import failed', error);
+      setStatusError(true);
+      setStatusMessage('Could not import this link. Check your connection or attach an audio file directly.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   // Real-time microphone whistling/humming transcription
@@ -438,7 +460,7 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
               </div>
             </div>
             <p className="text-[11px] text-[#94A3A7] leading-relaxed">
-              YouTube videos play through the official embedded player. Suno links are saved with their source information. Transcription requires actual accessible audio; the iframe itself cannot provide audio samples.
+              Suno links will automatically transcribe when their audio is downloadable and accessible. Otherwise download your own MP3/WAV from Suno and attach it. YouTube uses the official embedded player; its iframe cannot expose audio samples.
             </p>
           </div>
         )}

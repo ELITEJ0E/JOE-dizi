@@ -1,6 +1,7 @@
 import { Song } from '../types/dizi';
 
 const STORAGE_KEY = 'joe-dizi-user-songs-v1';
+const RECENT_KEY = 'joe-dizi-last-song-v1';
 
 export function readUserSongs(): Song[] {
   try {
@@ -26,4 +27,15 @@ export function saveUserSong(song: Song): void {
   } catch (error) {
     console.warn('Unable to save song metadata locally', error);
   }
+}
+
+export function rememberCurrentSong(id: string): void {
+  try { localStorage.setItem(RECENT_KEY, id); } catch { /* storage disabled */ }
+}
+
+export function restoreCurrentSong(): Song | null {
+  try {
+    const id = localStorage.getItem(RECENT_KEY);
+    return readUserSongs().find(song => song.id === id) || null;
+  } catch { return null; }
 }
