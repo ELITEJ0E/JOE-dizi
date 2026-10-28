@@ -122,7 +122,7 @@ export const YouTubeSyncPlayer: React.FC<YouTubeSyncPlayerProps> = ({
         try {
           callbacks.current.onTimeChange(playerRef.current.getCurrentTime(), playerRef.current.getDuration());
         } catch { /* YouTube player may have been removed */ }
-      }, 250);
+      }, 33); // Fast Jianpu events can last only 30–50 ms.
     }).catch((err) => {
       if (!cancelled) setError(err instanceof Error ? err.message : 'Unable to load YouTube.');
     });

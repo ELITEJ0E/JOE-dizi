@@ -65,3 +65,25 @@ test('a three-note flute phrase respects note names and a genuine rest', () => {
   assert.deepEqual(notes.map(note => note.pitch), ['D5', 'G5', 'A5']);
   assert.ok(notes[1].startTime >= 0.55 && notes[1].startTime <= 0.8, JSON.stringify(notes));
 });
+
+test('fast notes remain as separate events over bass, chord tones, and drum attacks', () => {
+  const rate = 12000;
+  const notesHz = [587.33, 659.25, 739.99, 783.99, 880, 783.99, 739.99, 659.25, 587.33, 880, 739.99, 783.99];
+  const noteDuration = 0.085;
+  const samples = new Float32Array(Math.ceil((notesHz.length * noteDuration + 0.2) * rate));
+  for (let i = 0; i < samples.length; i++) {
+    const t = i / rate;
+    const idx = Math.min(notesHz.length - 1, Math.floor(t / noteDuration));
+    const f = notesHz[idx];
+    const local = t - idx * noteDuration;
+    const env = Math.min(1, local / 0.012) * Math.min(1, Math.max(0, (noteDuration - local) / 0.008));
+    const flute = env * (0.21 * Math.sin(2 * Math.PI * f * t) + 0.13 * Math.sin(4 * Math.PI * f * t));
+    const backing = 0.12 * Math.sin(2 * Math.PI * 185 * t) + 0.065 * Math.sin(2 * Math.PI * 293.66 * t);
+    const percussive = (t % 0.21 < 0.009) ? 0.14 * Math.sin(2 * Math.PI * 3000 * t) : 0;
+    samples[i] = flute + backing + percussive;
+  }
+  const detected = pitchDetector.analyzeMelodyFromSamples(samples, rate, undefined, { minMidi: 74, maxMidi: 98 });
+  assert.ok(detected.length >= 7, `Missed most of the fast run: ${JSON.stringify(detected)}`);
+  assert.ok(detected.some(note => note.duration < 0.11), 'No short-note event was retained');
+  assert.ok(detected.some(note => note.pitch === 'F#5'), 'Flute F#5 should remain detectable');
+});

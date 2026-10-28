@@ -45,6 +45,7 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
   const [statusError, setStatusError] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [pitchDraft, setPitchDraft] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -63,7 +64,7 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
       const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
       setStatusMessage(`Tracking dizi melody within the ${diziKey}-key instrument range…`);
       const { rangeStartMidi, rangeEndMidi } = DIZI_KEYS_SPEC[diziKey];
-      const segments = await analyzeMelodyInBackground(audioBuffer, percent => {
+      const { notes: segments, estimatedBpm } = await analyzeMelodyInBackground(audioBuffer, percent => {
         setStatusMessage(`Analyzing melody in the background… ${percent}%`);
       }, { minMidi: rangeStartMidi, maxMidi: rangeEndMidi });
       if (segments.length === 0) {
@@ -72,7 +73,8 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
         return;
       }
 
-      const secondsPerBeat = 60 / Math.max(currentSong.bpm, 1);
+      const bpm = estimatedBpm || currentSong.bpm;
+      const secondsPerBeat = 60 / Math.max(bpm, 1);
       const notes: DiziNote[] = segments.map((segment, index) => {
         const startingBeat = segment.startTime / secondsPerBeat;
         return {
@@ -80,11 +82,12 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
           pitch: midiToPitchName(segment.midi, diziKey),
           midi: segment.midi,
           ...getJianpuForMidi(segment.midi, diziKey, fingeringSystem),
-          duration: Math.max(0.25, Math.round(segment.duration / secondsPerBeat * 4) / 4),
+          duration: Math.max(0.0625, Math.round(segment.duration / secondsPerBeat * 16) / 16),
           measureNumber: Math.floor(startingBeat / 4) + 1,
           beatInMeasure: Math.round((startingBeat % 4 + 1) * 100) / 100,
           startTime: segment.startTime,
           durationSeconds: segment.duration,
+          confidence: segment.confidence,
         };
       });
 
@@ -98,12 +101,14 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
         sourceDetails: `${attachesToLink ? currentSong.source === 'youtube' ? 'YouTube' : 'Suno' : 'Audio File'} • Audio analyzed`,
         audioUrl: URL.createObjectURL(file),
         audioDuration: audioBuffer.duration,
+        bpm,
         notes,
         sections: [],
         totalMeasures: Math.max(...notes.map(note => note.measureNumber), 1),
       };
       onLoadSong(newSong);
-      setStatusMessage(`Detected ${notes.length} candidate dizi notes in the selected range. Review note names against the audio before exporting; polyphonic mixes still need an isolated flute stem for reliable results.`);
+      const uncertainCount = notes.filter(note => note.confidence !== undefined && note.confidence < 0.35).length;
+      setStatusMessage(`Found ${notes.length} candidate melody events${estimatedBpm ? ` at ≈${estimatedBpm} BPM` : ''}, including fast ornaments. ${uncertainCount} ambiguous pitch candidates are marked '?' for review. Full mixes can contain other instruments; use an isolated dizi stem for the most reliable results.`);
       setStatusError(false);
     } catch (err) {
       console.error('Audio transcription failed', err);
@@ -447,12 +452,12 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
       </div>
 
       {/* 3. Interactive Note List & Transcribed Score Editor */}
-      <details className="bg-[#111D20] border border-[#1A2E33] rounded-xl p-3 sm:p-5 group">
+      <details onToggle={event => setEditorOpen(event.currentTarget.open)} className="bg-[#111D20] border border-[#1A2E33] rounded-xl p-3 sm:p-5 group">
         <summary className="flex items-center justify-between cursor-pointer list-none text-sm font-semibold text-[#F3F5F4]">
           Edit detected notes ({currentSong.notes.length})
           <ChevronDown className="w-4 h-4 text-[#36B39B] group-open:rotate-180 transition-transform" />
         </summary>
-        <div className="mt-4">
+        {editorOpen && <div className="mt-4">
         <div className="flex items-center justify-between pb-3 border-b border-[#1A2E33] mb-4">
           <div className="flex items-center gap-2">
             <Music className="w-4 h-4 text-[#B4F45A]" />
@@ -476,7 +481,7 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
             <thead>
               <tr className="border-b border-[#1A2E33] text-[#94A3A7] font-mono">
                 <th className="py-2 px-3">#</th>
-                <th className="py-2 px-3">Pitch</th>
+                <th className="py-2 px-3">Pitch / Review</th>
                 <th className="py-2 px-3">Jianpu</th>
                 <th className="py-2 px-3">Duration</th>
                 <th className="py-2 px-3">Measure</th>
@@ -496,7 +501,7 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
                         <input aria-label="Correct pitch name" value={pitchDraft} onChange={event => setPitchDraft(event.target.value.trim())}
                           onKeyDown={event => { if (event.key === 'Enter') handleSavePitch(note.id); if (event.key === 'Escape') setEditingNoteId(null); }}
                           className="w-20 rounded border border-[#36B39B] bg-[#0B1014] px-2 py-1 text-xs outline-none" autoFocus />
-                      ) : note.pitch}
+                      ) : <span className="inline-flex items-center gap-1.5">{note.pitch}{note.confidence !== undefined && note.confidence < 0.35 && <span title="Competing pitches are similarly prominent; confirm this note by ear" className="rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-200">Review</span>}</span>}
                     </td>
                     <td className="py-2 px-3 font-serif font-bold text-base text-[#F3F5F4]">
                       {note.jianpu}
@@ -545,7 +550,7 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
             </tbody>
           </table>
         </div>
-        </div>
+        </div>}
       </details>
     </div>
   );
