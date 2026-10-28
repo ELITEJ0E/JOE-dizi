@@ -103,3 +103,37 @@
   #dizi-print-score .print-staff { width: 100%; height: auto; display: block; overflow: visible; }
   #dizi-print-score footer { border-top: 1px solid #ddd; color: #68736d; font: 8pt Arial, sans-serif; margin-top: 20px; padding-top: 7px; text-align: right; }
 }
+
+
+/* JOE Music-inspired, touch-safe mobile navigation and slide-up launcher */
+.joe-dizi-mobile-nav{position:fixed;z-index:45;bottom:0;left:0;right:0;display:flex;align-items:stretch;justify-content:space-around;min-height:calc(58px + env(safe-area-inset-bottom,0px));padding:4px 4px calc(4px + env(safe-area-inset-bottom,0px));background:rgba(9,15,20,.97);border-top:1px solid #263139;box-shadow:0 -5px 24px #0007;backdrop-filter:blur(16px)}
+.joe-dizi-mobile-nav button{appearance:none;min-width:0;flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:3px;padding:5px 0;color:#aab5b8;font-size:10px;line-height:1.1;background:transparent;border-radius:9px}
+.joe-dizi-mobile-nav button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.joe-dizi-mobile-nav button.selected{color:#B4F45A;background:#B4F45A16}
+.joe-dizi-mobile-nav button:focus-visible,.joe-dizi-mobile-grid button:focus-visible{outline:2px solid #B4F45A;outline-offset:-2px}
+.joe-dizi-mobile-drawer{position:fixed;z-index:70;inset:0;pointer-events:none}
+.joe-dizi-mobile-backdrop{position:absolute;inset:0;background:#000c;backdrop-filter:blur(5px);pointer-events:auto;width:100%}
+.joe-dizi-mobile-sheet{position:absolute;bottom:0;left:0;right:0;max-height:78dvh;height:78dvh;border-radius:23px 23px 0 0;border-top:1px solid #2b393c;background:#0b1014;color:#f3f5f4;overflow:hidden;display:flex;flex-direction:column;pointer-events:auto;box-shadow:0 -12px 30px #0009}
+.joe-dizi-mobile-handle{padding:12px 18px 14px;border-bottom:1px solid #283237;flex:none}
+.joe-dizi-mobile-grip{display:block;width:46px;height:5px;border-radius:20px;background:#566265;margin:0 auto 13px}
+.joe-dizi-mobile-close{display:grid;place-items:center;width:35px;height:35px;border-radius:10px;background:#202930;color:#e4eaea}
+.joe-dizi-mobile-sheet-content{overflow-y:auto;flex:1;min-height:0;padding:16px 14px calc(20px + env(safe-area-inset-bottom,0px));overscroll-behavior:contain}
+.joe-dizi-mobile-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.joe-dizi-mobile-grid button{position:relative;display:flex;min-height:102px;padding:13px 5px;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-width:0;background:#192228;border:1px solid #29383a;border-radius:15px;color:#c5d0d0;font-size:12px;text-align:center;line-height:1.3}
+.joe-dizi-mobile-grid button.selected{color:#B4F45A;background:#B4F45A14;border-color:#B4F45A80}
+.joe-dizi-mobile-check{position:absolute;top:6px;right:7px}
+.joe-dizi-mobile-language{display:flex;align-items:center;gap:10px;margin-top:16px;padding:12px;background:#182126;border-radius:14px;font-size:12px}
+.joe-dizi-mobile-language>span{flex:1}
+.joe-dizi-mobile-language button{border:1px solid #344345;border-radius:8px;padding:7px 10px;color:#c6d0d0}
+.joe-dizi-mobile-language button.selected{color:#B4F45A;border-color:#B4F45A}
+@media(min-width:768px){.joe-dizi-mobile-nav,.joe-dizi-mobile-drawer{display:none!important}}
+/* The transport is a responsive toolbar, not a 2-line mobile grid that hides
+   the main controls beyond the top of the viewport. */
+@media(max-width:767px){
+  .joe-dizi-transport{min-width:0;max-width:100vw;overflow:hidden;padding:5px 7px!important;gap:4px!important;flex-wrap:nowrap!important;min-height:51px}
+  .joe-dizi-transport .joe-transport-song{flex:1 1 auto!important;max-width:none!important;min-width:50px!important;overflow:hidden}
+  .joe-dizi-transport .joe-transport-playback{width:auto!important;flex:0 0 auto!important;order:initial!important;min-width:0!important;overflow:hidden}
+  .joe-dizi-transport .joe-transport-right{flex:0 0 auto!important;min-width:0!important}
+  .joe-dizi-transport .joe-transport-hide-mobile{display:none!important}
+  [data-score-scroll-viewport]{padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))!important}
+}
