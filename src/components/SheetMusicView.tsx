@@ -49,15 +49,19 @@ export const SheetMusicView: React.FC<SheetMusicViewProps> = ({
     return Array.from(map.entries()).sort((a, b) => a[0] - b[0]);
   }, [song.notes]);
 
-  const measureMinWidth = (notes: number) => Math.max(140, notes * 27 + 20);
+  // On phones the old 140px per measure forced two measures per row.
+  // A denser proportional width keeps up to 3–4 measures (12–16 notes)
+  // readable at 360–430px, instead of scattering 4–5 notes across a line.
+  const measureMinWidth = (notes: number) =>
+    sheetWidth < 640 ? Math.max(76, notes * 17 + 10) : Math.max(112, notes * 23 + 16);
   const measureRows = useMemo(() => {
     const rows: Array<typeof measures> = [];
-    const available = Math.max(240, (sheetWidth || 750) - (sheetWidth >= 640 ? 42 : 28));
+    const available = Math.max(240, (sheetWidth || 750) - (sheetWidth >= 640 ? 42 : 18));
     let row: typeof measures = [];
     let used = 0;
     for (const measure of measures) {
       const width = measureMinWidth(measure[1].notes.length);
-      if (row.length && (row.length === 4 || used + width > available)) {
+      if (row.length && (row.length >= (sheetWidth < 640 ? 6 : 8) || used + width > available)) {
         rows.push(row);
         row = [];
         used = 0;
@@ -190,7 +194,7 @@ export const SheetMusicView: React.FC<SheetMusicViewProps> = ({
             <div data-score-row-scroll className="min-w-0 overflow-x-auto overflow-y-visible">
             <div style={{ minWidth: rowMeasures.reduce((sum, measure) => sum + measureMinWidth(measure[1].notes.length), 0) }}>
             {/* 1. Chords Row (aligned above measures) */}
-            <div className="grid mb-2 px-1" style={{ gridTemplateColumns: rowMeasures.map(measure => `${measureMinWidth(measure[1].notes.length)}fr`).join(' ') }}>
+            <div className="grid mb-1.5 sm:mb-2 px-1" style={{ gridTemplateColumns: rowMeasures.map(measure => `${measureMinWidth(measure[1].notes.length)}fr`).join(' ') }}>
               {rowMeasures.map(([mNum, mData]) => (
                 <div key={mNum} className="text-xs font-mono font-bold text-[#4B6960] tracking-wide">
                   {mData.chord ? `${mData.chord}` : ''}
@@ -203,7 +207,7 @@ export const SheetMusicView: React.FC<SheetMusicViewProps> = ({
               {rowMeasures.map(([mNum, mData], colIdx) => (
                 <div
                   key={mNum}
-                  className={`relative flex min-w-0 flex-col justify-between px-1.5 py-1 ${
+                  className={`relative flex min-w-0 flex-col justify-between px-0.5 sm:px-1.5 py-1 ${
                     colIdx < rowMeasures.length - 1 ? 'border-r border-[#8E8675]' : ''
                   }`}
                 >
@@ -214,7 +218,7 @@ export const SheetMusicView: React.FC<SheetMusicViewProps> = ({
 
                   {/* A. Jianpu Notation Section */}
                   {(notationMode === 'jianpu' || notationMode === 'dual') && (
-                    <div className="flex items-center justify-around py-2">
+                    <div className="flex items-center justify-around py-1 sm:py-2">
                       {mData.notes.map(({ note, originalIdx }) => {
                         const isActive = originalIdx === activeNoteIndex;
                         const tech = note.technique ? DIZI_TECHNIQUES[note.technique] : null;
@@ -224,7 +228,7 @@ export const SheetMusicView: React.FC<SheetMusicViewProps> = ({
                             key={note.id}
                             data-score-note={originalIdx}
                             onClick={() => onSelectNote(originalIdx)}
-                            className={`relative flex flex-col items-center justify-center cursor-pointer px-1 py-1 rounded-md transition-colors shrink-0 ${
+                            className={`relative flex flex-col items-center justify-center cursor-pointer px-0.5 sm:px-1 py-0.5 sm:py-1 rounded-md transition-colors shrink-0 ${
                               isActive
                                 ? 'bg-[#B4F45A]/35 ring-1 ring-[#36B39B]'
                                 : 'hover:bg-black/5'
@@ -260,7 +264,7 @@ export const SheetMusicView: React.FC<SheetMusicViewProps> = ({
                             </div>
 
                             {/* Main Jianpu Digit / Slur */}
-                            <div className="relative flex items-center justify-center min-w-[20px]">
+                            <div className="relative flex items-center justify-center min-w-[12px] sm:min-w-[20px]">
                               {/* Slur Curve Arc */}
                               {note.slurStart && (
                                 <div className="absolute -top-2 left-1/2 w-8 h-2 border-t-2 border-[#3E4947] rounded-t-full pointer-events-none" />
