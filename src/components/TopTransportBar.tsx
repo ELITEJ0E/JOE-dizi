@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { diziAudio } from '../audio/diziSynth';
 import { StudioSelect } from './StudioSelect';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface TopTransportBarProps {
   onOpenMobileMenu?: () => void;
@@ -247,6 +248,7 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
 
       {/* 3. Right Zone: Action buttons */}
       <div className="order-2 lg:order-none flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+        <PWAInstallButton />
         {/* Practice Mode Toggle */}
         <button
           onClick={onPracticeModeToggle}

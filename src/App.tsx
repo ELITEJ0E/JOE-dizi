@@ -3,7 +3,8 @@ import { ViewMode, Song, DiziKey, FingeringSystem } from './types/dizi';
 import { PRESET_SONGS } from './data/presetSongs';
 import { calculateMusicalTonic, findFingering, getJianpuForMidi, pitchNameToMidi, midiToPitchName } from './music/diziTheory';
 import { diziAudio } from './audio/diziSynth';
-import { saveUserSong } from './utils/songStorage';
+import { rememberCurrentSong, restoreCurrentSong, saveUserSong } from './utils/songStorage';
+import { getAudioFile } from './utils/audioLibrary';
 
 // Components
 import { Sidebar } from './components/Sidebar';
@@ -31,12 +32,15 @@ import { ChevronDown, Home, Music, BookOpen, Activity, Menu, Upload, ExternalLin
 
 export default function App() {
   // Navigation & View state
-  const [currentView, setCurrentView] = useState<ViewMode>('transcribe');
+  const [currentView, setCurrentView] = useState<ViewMode>(() => {
+    const requested = new URLSearchParams(window.location.search).get('view');
+    return requested === 'songbook' || requested === 'tuner' ? requested : 'transcribe';
+  });
 
   // Song & Instrument configuration
-  const [currentSong, setCurrentSong] = useState<Song>(PRESET_SONGS[0]); // Moon Over the Pass
-  const [diziKey, setDiziKey] = useState<DiziKey>('G');
-  const [fingeringSystem, setFingeringSystem] = useState<FingeringSystem>('tongyin_5');
+  const [currentSong, setCurrentSong] = useState<Song>(() => restoreCurrentSong() || PRESET_SONGS[0]);
+  const [diziKey, setDiziKey] = useState<DiziKey>(() => restoreCurrentSong()?.diziKey || 'G');
+  const [fingeringSystem, setFingeringSystem] = useState<FingeringSystem>(() => restoreCurrentSong()?.fingeringSystem || 'tongyin_5');
   const [notationMode, setNotationMode] = useState<'jianpu' | 'staff' | 'dual'>('dual');
 
   // Playback & Practice state
@@ -100,11 +104,32 @@ export default function App() {
     setYoutubeSeekRequest(null);
     setCurrentView('transcribe');
     saveUserSong(song);
+    rememberCurrentSong(song.id);
   }, []);
 
   useEffect(() => {
     if (currentSong.source !== 'preset') saveUserSong(currentSong);
   }, [currentSong]);
+
+  // Restore an uploaded file or successfully fetched Suno audio across reloads.
+  // The JSON score lives in localStorage; large binary media lives in IndexedDB.
+  useEffect(() => {
+    if (currentSong.source === 'preset' || currentSong.source === 'youtube' || currentSong.audioUrl) return;
+    let cancelled = false;
+    const id = currentSong.id;
+    void getAudioFile(id).then(blob => {
+      if (!blob || cancelled) return;
+      const url = URL.createObjectURL(blob);
+      setCurrentSong(previous => {
+        if (previous.id !== id || previous.audioUrl) {
+          URL.revokeObjectURL(url);
+          return previous;
+        }
+        return { ...previous, audioUrl: url };
+      });
+    });
+    return () => { cancelled = true; };
+  }, [currentSong.id, currentSong.audioUrl, currentSong.source]);
 
   // Always derive displayed Jianpu from the *actual sounding pitch* and
   // selected tonic. Persisted Jianpu from a different key must not be shown.
@@ -401,21 +426,17 @@ export default function App() {
               {currentSong.source === 'suno' && currentSong.sourceUrl && (
                 <div className="rounded-xl border border-[#1A2E33] bg-[#111D20] overflow-hidden">
                   <div className="p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <p className="text-xs text-[#94A3A7]">{currentSong.audioUrl ? 'Playing the audio you attached.' : 'Listen using the Suno player below, or attach a downloaded audio file for transcription. The embed cannot expose audio samples or sync with the top transport.'}</p>
+                    <p className="text-xs text-[#94A3A7]">{currentSong.audioUrl ? 'Suno audio ready in the studio transport. The score follows the detected note timing.' : 'The Suno link was saved. To transcribe this track, import an authorized audio file above if online audio was unavailable.'}</p>
                     <a href={currentSong.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-[#B4F45A] flex items-center gap-1 shrink-0">
                       Open on Suno <ExternalLink className="w-3.5 h-3.5" />
                     </a>
                   </div>
-                  {currentSong.sunoClipId && !currentSong.audioUrl && (
-                    <iframe title="Suno song player" src={`https://suno.com/embed/${currentSong.sunoClipId}`}
-                      loading="lazy" allow="autoplay; encrypted-media; clipboard-write" className="w-full h-[220px] border-0 bg-[#0B1014]" />
-                  )}
                 </div>
               )}
 
               {currentSong.notes.length === 0 && (
                 <div className="border border-amber-700/40 bg-amber-500/5 text-amber-200 rounded-xl p-4 flex items-start gap-2 text-xs leading-relaxed">
-                  <Clock3 className="w-4 h-4 shrink-0" /> No note transcription yet. Importing a URL loads its source; attach matching audio above to generate real, timestamped Jianpu notes and fingering diagrams.
+                  <Clock3 className="w-4 h-4 shrink-0" /> No note transcription yet. Suno imports attempt to analyze accessible audio automatically; YouTube playback needs a separate authorized audio recording for note analysis.
                 </div>
               )}
               {/* Header Title & Instrument Controls Strip (matches screenshot) */}
