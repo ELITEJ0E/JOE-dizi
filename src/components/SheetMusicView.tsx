@@ -43,24 +43,21 @@ export const SheetMusicView: React.FC<SheetMusicViewProps> = ({
     measureRows.push(measures.slice(i, i + 4));
   }
 
-  // Calculate staff vertical line position for treble staff
-  // Middle C (C4) = 60, G4 = 67, D5 = 74, etc.
-  const getStaffY = (midi: number) => {
-    // Treble staff lines:
-    // Line 5 (F5) = y: 10
-    // Space 4 (E5) = y: 15
-    // Line 4 (D5) = y: 20
-    // Space 3 (C5) = y: 25
-    // Line 3 (B4) = y: 30
-    // Space 2 (A4) = y: 35
-    // Line 2 (G4) = y: 40
-    // Space 1 (F4) = y: 45
-    // Line 1 (E4) = y: 50
-    // Middle C4 ledger line = y: 60
-    // Semitone approximate step
-    const diatonicStep = Math.round((midi - 60) * 2.5);
-    return Math.max(5, Math.min(65, 60 - diatonicStep));
+  // Staff positions are DIATONIC, not semitone-proportional. The previous
+  // implementation clamped most high dizi notes to the same y-coordinate.
+  const diatonicStep = (pitch: string, midi: number) => {
+    const letter = /^[A-G]/.exec(pitch)?.[0] || 'C';
+    const stepInOctave = 'CDEFGAB'.indexOf(letter);
+    return (Math.floor(midi / 12) - 5) * 7 + stepInOctave; // C4 = step 0
   };
+  const highestStep = Math.max(10, ...song.notes.map(note => diatonicStep(note.pitch, note.midi)));
+  const lowestStep = Math.min(2, ...song.notes.map(note => diatonicStep(note.pitch, note.midi)));
+  const extraTop = Math.max(0, (highestStep - 10) * 5);
+  const extraBottom = Math.max(0, (2 - lowestStep) * 5);
+  const staffHeight = 76 + extraTop + extraBottom;
+  const topStaffLine = 16 + extraTop;
+  const bottomStaffLine = topStaffLine + 40;
+  const getStaffY = (pitch: string, midi: number) => topStaffLine + (10 - diatonicStep(pitch, midi)) * 5;
 
   return (
     <div className={`relative xuan-paper rounded-xl shadow-2xl p-3 sm:p-8 text-[#1D2928] overflow-hidden select-none border border-[#E5DFD0] ${className}`}>
@@ -135,7 +132,7 @@ export const SheetMusicView: React.FC<SheetMusicViewProps> = ({
         {measureRows.map((rowMeasures, rowIdx) => (
           <div key={rowIdx} className="border-b border-[#DCD5C5] pb-6 last:border-b-0">
             {/* 1. Chords Row (aligned above measures) */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2 px-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2 mb-2 px-1">
               {rowMeasures.map(([mNum, mData]) => (
                 <div key={mNum} className="text-xs font-mono font-bold text-[#4B6960] tracking-wide">
                   {mData.chord ? `${mData.chord}` : ''}
@@ -144,7 +141,7 @@ export const SheetMusicView: React.FC<SheetMusicViewProps> = ({
             </div>
 
             {/* 2. Main Notation Row (Jianpu + Staff) */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 border-l border-[#8E8675] border-r">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2 border-l border-[#8E8675] border-r">
               {rowMeasures.map(([mNum, mData], colIdx) => (
                 <div
                   key={mNum}
@@ -257,16 +254,16 @@ export const SheetMusicView: React.FC<SheetMusicViewProps> = ({
 
                   {/* B. Western 5-Line Staff Notation Section */}
                   {(notationMode === 'staff' || notationMode === 'dual') && (
-                    <div className="relative h-16 w-full mt-2">
-                      <svg className="w-full h-full overflow-visible">
+                    <div className="relative w-full mt-2" style={{ height: staffHeight }}>
+                      <svg className="w-full h-full overflow-visible" role="img" aria-label="Treble staff with pitch-accurate notes and ledger lines">
                         {/* 5 Staff lines */}
-                        {[16, 26, 36, 46, 56].map((yLine, lIdx) => (
+                        {[0, 10, 20, 30, 40].map((offset, lIdx) => (
                           <line
                             key={lIdx}
                             x1="0"
-                            y1={yLine}
+                            y1={topStaffLine + offset}
                             x2="100%"
-                            y2={yLine}
+                            y2={topStaffLine + offset}
                             stroke="#5B6664"
                             strokeWidth="1"
                           />
@@ -276,7 +273,7 @@ export const SheetMusicView: React.FC<SheetMusicViewProps> = ({
                         {colIdx === 0 && (
                           <text
                             x="4"
-                            y="48"
+                            y={topStaffLine + 33}
                             fontSize="32"
                             fontFamily="serif"
                             fill="#1D2928"
@@ -291,7 +288,11 @@ export const SheetMusicView: React.FC<SheetMusicViewProps> = ({
                           const isActive = originalIdx === activeNoteIndex;
                           const noteCount = mData.notes.length;
                           const xPercent = ((nIdx + 0.6) / noteCount) * 100;
-                          const noteY = getStaffY(note.midi);
+                          const noteY = getStaffY(note.pitch, note.midi);
+                          const ledgerYs: number[] = [];
+                          for (let y = topStaffLine - 10; y >= noteY - 1; y -= 10) ledgerYs.push(y);
+                          for (let y = bottomStaffLine + 10; y <= noteY + 1; y += 10) ledgerYs.push(y);
+                          const stemDown = noteY < topStaffLine + 10;
 
                           return (
                             <g
@@ -299,17 +300,21 @@ export const SheetMusicView: React.FC<SheetMusicViewProps> = ({
                               className="cursor-pointer"
                               onClick={() => onSelectNote(originalIdx)}
                             >
-                              {/* Ledger line if outside staff */}
-                              {noteY > 56 && (
+                              {/* Real ledger lines for notes beyond the staff */}
+                              {ledgerYs.map(y => (
                                 <line
+                                  key={y}
                                   x1={`${xPercent - 5}%`}
-                                  y1={60}
+                                  y1={y}
                                   x2={`${xPercent + 5}%`}
-                                  y2={60}
+                                  y2={y}
                                   stroke="#1D2928"
                                   strokeWidth="1.2"
                                 />
-                              )}
+                              ))}
+
+                              {/[#b]/.test(note.pitch) && <text x={`${xPercent - 7}%`} y={noteY + 3}
+                                fontFamily="serif" fontSize="12" fill="#1D2928">{note.pitch.includes('#') ? '♯' : '♭'}</text>}
 
                               {/* Note head (quarter / eighth note) */}
                               <ellipse
@@ -317,16 +322,15 @@ export const SheetMusicView: React.FC<SheetMusicViewProps> = ({
                                 cy={noteY}
                                 rx="4.5"
                                 ry="3.5"
-                                transform={`rotate(-20, ${xPercent}, ${noteY})`}
                                 fill={isActive ? '#36B39B' : '#1D2928'}
                               />
 
                               {/* Note Stem */}
                               <line
-                                x1={`${xPercent + 4}%`}
+                                x1={`${xPercent + (stemDown ? -4 : 4)}%`}
                                 y1={noteY}
-                                x2={`${xPercent + 4}%`}
-                                y2={noteY - 24}
+                                x2={`${xPercent + (stemDown ? -4 : 4)}%`}
+                                y2={noteY + (stemDown ? 24 : -24)}
                                 stroke={isActive ? '#36B39B' : '#1D2928'}
                                 strokeWidth="1.2"
                               />

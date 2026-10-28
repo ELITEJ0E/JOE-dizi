@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useId } from 'react';
 import { SixHoles, HoleState } from '../types/dizi';
 
 interface DiziFingeringDiagramProps {
@@ -18,6 +18,7 @@ export const DiziFingeringDiagram: React.FC<DiziFingeringDiagramProps> = ({
   className = '',
   size = 'md'
 }) => {
+  const idPrefix = useId().replace(/:/g, '');
   // If compact, render a simple horizontal row of 6 dots (useful for upcoming note preview)
   if (isCompact) {
     return (
@@ -43,10 +44,9 @@ export const DiziFingeringDiagram: React.FC<DiziFingeringDiagramProps> = ({
     );
   }
 
-  // Full realistic Bamboo Flute SVG rendering
-  // Flute dimensions
-  const width = size === 'sm' ? 44 : size === 'lg' ? 64 : 54;
-  const height = size === 'sm' ? 360 : size === 'lg' ? 480 : 420;
+  // Preserve the viewBox's exact aspect ratio at all screen sizes and at 100%
+  // browser zoom. A fixed width/height used to stretch the flute and clip it.
+  const maxHeight = size === 'sm' ? 'min(36dvh, 320px)' : size === 'lg' ? 'min(54dvh, 460px)' : 'min(48dvh, 420px)';
 
   // Hole positions from top (y coordinates)
   // Hole 6 (top) down to Hole 1 (bottom)
@@ -62,14 +62,15 @@ export const DiziFingeringDiagram: React.FC<DiziFingeringDiagramProps> = ({
   return (
     <div className={`relative flex flex-col items-center select-none ${className}`}>
       <svg
-        width={width}
-        height={height}
         viewBox="0 0 70 460"
-        className="overflow-visible filter drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)]"
+        role="img"
+        aria-label="Six-hole bamboo dizi fingering diagram, all holes visible"
+        className="block h-auto w-auto max-w-full overflow-visible filter drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)]"
+        style={{ height: maxHeight, aspectRatio: '70 / 460', objectFit: 'contain' }}
       >
         <defs>
           {/* Authentic mottled bamboo texture gradient */}
-          <linearGradient id="bambooShine" x1="0%" y1="0%" x2="100%" y2="0%">
+          <linearGradient id={`${idPrefix}-bambooShine`} x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%" stopColor="#2E1C12" />
             <stop offset="18%" stopColor="#6C4126" />
             <stop offset="35%" stopColor="#9E693D" />
@@ -80,7 +81,7 @@ export const DiziFingeringDiagram: React.FC<DiziFingeringDiagramProps> = ({
           </linearGradient>
 
           {/* Bone horn inlay binding gradient for ends */}
-          <linearGradient id="boneCap" x1="0%" y1="0%" x2="100%" y2="0%">
+          <linearGradient id={`${idPrefix}-boneCap`} x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%" stopColor="#8A8576" />
             <stop offset="35%" stopColor="#E8E4D8" />
             <stop offset="65%" stopColor="#FAF7EE" />
@@ -88,21 +89,21 @@ export const DiziFingeringDiagram: React.FC<DiziFingeringDiagramProps> = ({
           </linearGradient>
 
           {/* Black thread binding (缠丝) gradient */}
-          <linearGradient id="threadBinding" x1="0%" y1="0%" x2="100%" y2="0%">
+          <linearGradient id={`${idPrefix}-threadBinding`} x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%" stopColor="#0B0D0F" />
             <stop offset="50%" stopColor="#2A3036" />
             <stop offset="100%" stopColor="#0B0D0F" />
           </linearGradient>
 
           {/* Hole interior drop shadow */}
-          <radialGradient id="holeInnerShadow" cx="50%" cy="50%" r="50%">
+          <radialGradient id={`${idPrefix}-holeInnerShadow`} cx="50%" cy="50%" r="50%">
             <stop offset="60%" stopColor="#0A0B0C" />
             <stop offset="85%" stopColor="#1E1712" />
             <stop offset="100%" stopColor="#4A3423" />
           </radialGradient>
 
           {/* Open hole ivory look */}
-          <radialGradient id="holeOpen" cx="45%" cy="40%" r="55%">
+          <radialGradient id={`${idPrefix}-holeOpen`} cx="45%" cy="40%" r="55%">
             <stop offset="0%" stopColor="#FAF5E8" />
             <stop offset="70%" stopColor="#DDD4BC" />
             <stop offset="100%" stopColor="#9C8B72" />
@@ -116,7 +117,7 @@ export const DiziFingeringDiagram: React.FC<DiziFingeringDiagramProps> = ({
           width="42"
           height="424"
           rx="5"
-          fill="url(#bambooShine)"
+          fill={`url(#${idPrefix}-bambooShine)`}
           stroke="#1F130B"
           strokeWidth="1"
         />
@@ -127,21 +128,21 @@ export const DiziFingeringDiagram: React.FC<DiziFingeringDiagramProps> = ({
         <line x1="14" y1="380" x2="56" y2="380" stroke="#22140A" strokeWidth="2.5" opacity="0.6" />
 
         {/* Top White Bone Cap (牛骨顶镶) */}
-        <rect x="13" y="10" width="44" height="12" rx="3" fill="url(#boneCap)" stroke="#3E3831" strokeWidth="0.8" />
+        <rect x="13" y="10" width="44" height="12" rx="3" fill={`url(#${idPrefix}-boneCap)`} stroke="#3E3831" strokeWidth="0.8" />
         {/* Bottom Bone Cap */}
-        <rect x="13" y="438" width="44" height="12" rx="3" fill="url(#boneCap)" stroke="#3E3831" strokeWidth="0.8" />
+        <rect x="13" y="438" width="44" height="12" rx="3" fill={`url(#${idPrefix}-boneCap)`} stroke="#3E3831" strokeWidth="0.8" />
 
         {/* Traditional Black Thread Bindings (缠丝固定) */}
-        <rect x="13.5" y="24" width="43" height="8" fill="url(#threadBinding)" />
-        <rect x="13.5" y="65" width="43" height="7" fill="url(#threadBinding)" />
-        <rect x="13.5" y="115" width="43" height="7" fill="url(#threadBinding)" />
-        <rect x="13.5" y="243" width="43" height="7" fill="url(#threadBinding)" />
-        <rect x="13.5" y="360" width="43" height="7" fill="url(#threadBinding)" />
-        <rect x="13.5" y="426" width="43" height="8" fill="url(#threadBinding)" />
+        <rect x="13.5" y="24" width="43" height="8" fill={`url(#${idPrefix}-threadBinding)`} />
+        <rect x="13.5" y="65" width="43" height="7" fill={`url(#${idPrefix}-threadBinding)`} />
+        <rect x="13.5" y="115" width="43" height="7" fill={`url(#${idPrefix}-threadBinding)`} />
+        <rect x="13.5" y="243" width="43" height="7" fill={`url(#${idPrefix}-threadBinding)`} />
+        <rect x="13.5" y="360" width="43" height="7" fill={`url(#${idPrefix}-threadBinding)`} />
+        <rect x="13.5" y="426" width="43" height="8" fill={`url(#${idPrefix}-threadBinding)`} />
 
         {/* 1. Blow Hole (吹孔 Chui Kong) */}
         <g transform="translate(35, 48)">
-          <ellipse cx="0" cy="0" rx="9" ry="7" fill="url(#holeInnerShadow)" stroke="#3E2413" strokeWidth="1.2" />
+          <ellipse cx="0" cy="0" rx="9" ry="7" fill={`url(#${idPrefix}-holeInnerShadow)`} stroke="#3E2413" strokeWidth="1.2" />
           <ellipse cx="0" cy="0" rx="8" ry="5.8" fill="#080809" opacity="0.95" />
           {/* Subtle rim highlight */}
           <path d="M -7 -2 Q 0 -5 7 -2" stroke="#D3B08C" strokeWidth="0.8" fill="none" opacity="0.6" />
@@ -183,15 +184,15 @@ export const DiziFingeringDiagram: React.FC<DiziFingeringDiagramProps> = ({
               {state === 0 && (
                 /* Open Hole: Clean ivory reflection looking into the bamboo body */
                 <g>
-                  <circle cx="0" cy="0" r="8.2" fill="url(#holeOpen)" stroke="#524334" strokeWidth="0.8" />
-                  <circle cx="0" cy="0" r="6.2" fill="url(#holeInnerShadow)" opacity="0.85" />
+                  <circle cx="0" cy="0" r="8.2" fill={`url(#${idPrefix}-holeOpen)`} stroke="#524334" strokeWidth="0.8" />
+                  <circle cx="0" cy="0" r="6.2" fill={`url(#${idPrefix}-holeInnerShadow)`} opacity="0.85" />
                 </g>
               )}
 
               {state === 0.5 && (
                 /* Half Hole (半孔): Half pressed, half open */
                 <g>
-                  <circle cx="0" cy="0" r="8.2" fill="url(#holeOpen)" />
+                  <circle cx="0" cy="0" r="8.2" fill={`url(#${idPrefix}-holeOpen)`} />
                   <path d="M 0 -8.2 A 8.2 8.2 0 0 1 0 8.2 Z" fill="#0D1114" />
                   <line x1="0" y1="-8.2" x2="0" y2="8.2" stroke="#1D2A30" strokeWidth="1" />
                 </g>

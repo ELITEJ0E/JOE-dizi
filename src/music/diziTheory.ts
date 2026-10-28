@@ -10,6 +10,7 @@ import {
 
 // Note frequencies and names
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const FLAT_NOTE_NAMES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 
 export function midiToFrequency(midi: number): number {
   return 440 * Math.pow(2, (midi - 69) / 12);
@@ -19,8 +20,9 @@ export function frequencyToMidi(freq: number): number {
   return Math.round(69 + 12 * Math.log2(freq / 440));
 }
 
-export function midiToPitchName(midi: number): string {
-  const note = NOTE_NAMES[((midi % 12) + 12) % 12];
+export function midiToPitchName(midi: number, diziKey?: DiziKey): string {
+  const names = diziKey === 'F' || diziKey === 'Bb' ? FLAT_NOTE_NAMES : NOTE_NAMES;
+  const note = names[((midi % 12) + 12) % 12];
   const octave = Math.floor(midi / 12) - 1;
   return `${note}${octave}`;
 }
@@ -178,6 +180,32 @@ export const KEY_TRANSPOSITION_SEMITONES: Record<DiziKey, number> = {
   'Bb': 10
 };
 
+// The tonic octave depends on where "1" sits on the flute, not just its
+// pitch class. Keep this independent of the fingering table: accidentals and
+// notes outside the physical range must still receive honest notation.
+const G_DIZI_TONIC_MIDI: Record<FingeringSystem, number> = {
+  tongyin_5: 79, // G5
+  tongyin_2: 84, // C6
+  tongyin_1: 74, // D5
+  tongyin_6: 77, // F5
+  tongyin_3: 70, // Bb4
+};
+
+const CHROMATIC_JIANPU = [
+  '1', '#1', '2', 'b3', '3', '4', '#4', '5', 'b6', '6', 'b7', '7'
+] as const;
+
+export function getJianpuForMidi(midi: number, diziKey: DiziKey, system: FingeringSystem): {
+  jianpu: string;
+  octaveDot: -2 | -1 | 0 | 1 | 2;
+} {
+  const tonic = G_DIZI_TONIC_MIDI[system] + pitchNameToMidi(DIZI_KEYS_SPEC[diziKey].tongyinPitch) - 74;
+  const semitones = midi - tonic;
+  const octave = Math.floor(semitones / 12);
+  const degree = CHROMATIC_JIANPU[((semitones % 12) + 12) % 12];
+  return { jianpu: degree, octaveDot: Math.max(-2, Math.min(2, octave)) as -2 | -1 | 0 | 1 | 2 };
+}
+
 // Calculate musical tonic given dizi key and fingering system
 export function calculateMusicalTonic(diziKey: DiziKey, system: FingeringSystem): string {
   // If diziKey = G:
@@ -202,30 +230,17 @@ export function calculateMusicalTonic(diziKey: DiziKey, system: FingeringSystem)
 
 // Generate full dynamic fingering table for any Dizi Key and Fingering System
 export function getFingeringsFor(diziKey: DiziKey, system: FingeringSystem): FingeringEntry[] {
-  const baseDiziMidi = KEY_TRANSPOSITION_SEMITONES[diziKey];
-  const gDiziMidi = KEY_TRANSPOSITION_SEMITONES['G'];
-  const semitoneShift = baseDiziMidi - gDiziMidi;
+  // Use the sounding tube-note octave, not just the pitch class. A Bb dizi is
+  // *lower* than G, despite Bb's pitch-class number being greater than G's.
+  const semitoneShift = pitchNameToMidi(DIZI_KEYS_SPEC[diziKey].tongyinPitch) - 74;
 
   // Shift base G entries by semitones
   return FINGERINGS_G_TONGYIN_5.map(entry => {
     const shiftedMidi = entry.midi + semitoneShift;
-    const pitch = midiToPitchName(shiftedMidi);
+    const pitch = midiToPitchName(shiftedMidi, diziKey);
     const freq = midiToFrequency(shiftedMidi);
 
-    // Compute Jianpu degree depending on fingering system
-    let jianpuDegree = entry.jianpuDegree;
-    let octaveDot = entry.octaveDot;
-
-    // Mapping base degree index (0 to 6 for 1,2,3,4,5,6,7)
-    if (system === 'tongyin_2') {
-      // 5 becomes 2, 6 becomes 3, 7 becomes 4, 1 becomes 5, 2 becomes 6, 3 becomes 7, 4 becomes 1
-      const map: Record<string, string> = { '5': '2', '6': '3', '7': '4', 'b7': 'b4', '1': '5', '2': '6', '3': '7', '4': '1', '#4': '#1' };
-      jianpuDegree = map[entry.jianpuDegree] || entry.jianpuDegree;
-    } else if (system === 'tongyin_1') {
-      // 5 becomes 1, 6 becomes 2, 7 becomes 3, 1 becomes 4, 2 becomes 5, 3 becomes 6, 4 becomes 7
-      const map: Record<string, string> = { '5': '1', '6': '2', '7': '3', 'b7': 'b3', '1': '4', '2': '5', '3': '6', '4': '7', '#4': '#7' };
-      jianpuDegree = map[entry.jianpuDegree] || entry.jianpuDegree;
-    }
+    const { jianpu: jianpuDegree, octaveDot } = getJianpuForMidi(shiftedMidi, diziKey, system);
 
     return {
       ...entry,
@@ -238,31 +253,22 @@ export function getFingeringsFor(diziKey: DiziKey, system: FingeringSystem): Fin
   });
 }
 
-// Find best fingering for a given pitch or note
+// Exact matching only. A nearby six-hole pattern is NOT a valid fingering for
+// a different sounding pitch (e.g. F#7 was previously shown as D7 / Jianpu 5).
 export function findFingering(
   targetPitch: string,
   diziKey: DiziKey = 'G',
   system: FingeringSystem = 'tongyin_5'
 ): FingeringEntry | null {
   const table = getFingeringsFor(diziKey, system);
-  // Exact pitch match first
-  const exact = table.find(e => e.pitch === targetPitch && !e.alternative);
-  if (exact) return exact;
-  const any = table.find(e => e.pitch === targetPitch);
-  if (any) return any;
-
-  // Approximate nearest by MIDI
+  // Match equivalent enharmonic spellings by MIDI, but never a nearby note.
+  if (!/^[A-G](?:#|b)?-?\d+$/.test(targetPitch)) return null;
   const targetMidi = pitchNameToMidi(targetPitch);
-  let closest = table[0];
-  let minDiff = Math.abs(closest.midi - targetMidi);
-  for (const item of table) {
-    const diff = Math.abs(item.midi - targetMidi);
-    if (diff < minDiff) {
-      minDiff = diff;
-      closest = item;
-    }
-  }
-  return closest || null;
+  const exact = table.find(e => e.midi === targetMidi && !e.alternative);
+  if (exact) return exact;
+  const any = table.find(e => e.midi === targetMidi);
+  if (any) return any;
+  return null;
 }
 
 // Techniques database
