@@ -1,8 +1,10 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Song, DiziKey, FingeringSystem, DiziNote } from '../../types/dizi';
 import { pitchDetector } from '../../audio/pitchDetector';
+import { analyzeMelodyInBackground } from '../../audio/analyzeMelody';
 import { midiToPitchName, findFingering } from '../../music/diziTheory';
 import { diziAudio } from '../../audio/diziSynth';
+import { getShareMetadata, parseMediaSource } from '../../utils/mediaSources';
 import {
   Upload,
   Mic,
@@ -11,11 +13,11 @@ import {
   Plus,
   Trash2,
   Play,
-  Save,
-  Sparkles,
   Link as LinkIcon,
   CheckCircle2,
-  FileAudio
+  FileAudio,
+  AlertCircle,
+  ChevronDown
 } from 'lucide-react';
 
 interface DiziTranscriberViewProps {
@@ -39,77 +41,120 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
+  const [statusError, setStatusError] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => () => pitchDetector.stopMicrophone(), []);
+
+  const transcribeFile = async (file: File) => {
+    setIsProcessing(true);
+    setStatusError(false);
+    setStatusMessage(`Decoding audio file "${file.name}"...`);
+    let ctx: AudioContext | null = null;
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      ctx = new AudioCtx();
+      const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+      setStatusMessage('Extracting monophonic melody and note timestamps…');
+      const segments = await analyzeMelodyInBackground(audioBuffer, percent => {
+        setStatusMessage(`Analyzing melody in the background… ${percent}%`);
+      });
+      if (segments.length === 0) {
+        setStatusError(true);
+        setStatusMessage('No clear single-note melody detected. Try a solo dizi or isolated melodic stem.');
+        return;
+      }
+
+      const secondsPerBeat = 60 / Math.max(currentSong.bpm, 1);
+      const notes: DiziNote[] = segments.map((segment, index) => {
+        const fingering = findFingering(segment.pitch, diziKey, fingeringSystem);
+        const startingBeat = segment.startTime / secondsPerBeat;
+        return {
+          id: `transcribed_${Date.now()}_${index}`,
+          pitch: segment.pitch,
+          midi: segment.midi,
+          jianpu: fingering?.jianpuDegree || '?',
+          octaveDot: fingering?.octaveDot || 0,
+          duration: Math.max(0.25, Math.round(segment.duration / secondsPerBeat * 4) / 4),
+          measureNumber: Math.floor(startingBeat / 4) + 1,
+          beatInMeasure: Math.round((startingBeat % 4 + 1) * 100) / 100,
+          startTime: segment.startTime,
+          durationSeconds: segment.duration,
+        };
+      });
+
+      const attachesToLink = (currentSong.source === 'youtube' || currentSong.source === 'suno');
+      const newSong: Song = {
+        ...currentSong,
+        id: attachesToLink ? currentSong.id : `transcription_${Date.now()}`,
+        titleEn: attachesToLink ? currentSong.titleEn : file.name.replace(/\.[^/.]+$/, ''),
+        titleZh: attachesToLink ? currentSong.titleZh : '新转谱乐曲',
+        source: attachesToLink ? currentSong.source : 'upload',
+        sourceDetails: `${attachesToLink ? currentSong.source === 'youtube' ? 'YouTube' : 'Suno' : 'Audio File'} • Audio analyzed`,
+        audioUrl: URL.createObjectURL(file),
+        audioDuration: audioBuffer.duration,
+        notes,
+        sections: [],
+        totalMeasures: Math.max(...notes.map(note => note.measureNumber), 1),
+      };
+      onLoadSong(newSong);
+      setStatusMessage(`Analyzed ${notes.length} notes from actual audio. Review the detected melody before exporting.`);
+      setStatusError(false);
+    } catch (err) {
+      console.error('Audio transcription failed', err);
+      setStatusError(true);
+      setStatusMessage('Unable to decode this file. Try a standard MP3 or WAV recording.');
+    } finally {
+      if (ctx) await ctx.close().catch(() => {});
+      setIsProcessing(false);
+    }
+  };
 
   // Audio file upload and decoding
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    await transcribeFile(file);
+    e.target.value = '';
+  };
 
-    setIsProcessing(true);
-    setStatusMessage(`Decoding audio file "${file.name}"...`);
-
-    try {
-      const arrayBuffer = await file.arrayBuffer();
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      const ctx = new AudioCtx();
-      const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
-
-      setStatusMessage('Extracting melody & detecting fundamental frequencies with autocorrelation...');
-      const melodySegments = pitchDetector.analyzeMelodyFromAudioBuffer(audioBuffer);
-
-      if (melodySegments.length === 0) {
-        setStatusMessage('No clear monophonic pitch detected. Try a cleaner solo melody or whistle recording.');
-        setIsProcessing(false);
-        return;
-      }
-
-      // Convert segments to Dizi notes & Jianpu
-      let currentMeasure = 1;
-      let currentBeat = 1;
-      const newNotes: DiziNote[] = melodySegments.map((seg, idx) => {
-        const fingering = findFingering(seg.pitch, diziKey, fingeringSystem);
-        const noteDuration = seg.duration > 0.8 ? 2 : seg.duration > 0.4 ? 1 : 0.5;
-
-        const note: DiziNote = {
-          id: `transcribed_${Date.now()}_${idx}`,
-          pitch: seg.pitch,
-          midi: seg.midi,
-          jianpu: fingering?.jianpuDegree || '1',
-          octaveDot: fingering?.octaveDot || 0,
-          duration: noteDuration,
-          measureNumber: currentMeasure,
-          beatInMeasure: currentBeat
-        };
-
-        currentBeat += noteDuration;
-        if (currentBeat > 4) {
-          currentMeasure += Math.floor(currentBeat / 4);
-          currentBeat = (currentBeat % 4) || 1;
-        }
-
-        return note;
-      });
-
-      const newSong: Song = {
-        ...currentSong,
-        id: `transcription_${Date.now()}`,
-        titleEn: file.name.replace(/\.[^/.]+$/, ''),
-        titleZh: '新转谱乐曲',
-        source: 'upload',
-        sourceDetails: 'Audio File • Transcribed',
-        notes: newNotes,
-        totalMeasures: currentMeasure + 1
-      };
-
-      onLoadSong(newSong);
-      setStatusMessage(`Successfully transcribed ${newNotes.length} notes into Jianpu!`);
-    } catch (err) {
-      console.error(err);
-      setStatusMessage('Error reading audio file. Please ensure it is a valid MP3/WAV file.');
-    } finally {
-      setIsProcessing(false);
+  const handleImportUrl = async () => {
+    const source = parseMediaSource(youtubeUrl);
+    if (!source) {
+      setStatusError(true);
+      setStatusMessage('Enter a valid YouTube video URL or Suno /song/ link.');
+      return;
     }
+    setIsProcessing(true);
+    setStatusError(false);
+    setStatusMessage(`Importing ${source.kind === 'youtube' ? 'YouTube video' : 'Suno song'}…`);
+    const metadata = await getShareMetadata(source);
+    const newSong: Song = {
+      ...currentSong,
+      id: `${source.kind}_${source.id}`,
+      titleEn: metadata.title || (source.kind === 'youtube' ? `YouTube video ${source.id}` : `Suno track ${source.id.slice(0, 8)}`),
+      titleZh: '',
+      artistEn: metadata.artist || '',
+      artistZh: '',
+      source: source.kind,
+      sourceUrl: source.url,
+      youtubeVideoId: source.kind === 'youtube' ? source.id : undefined,
+      sunoClipId: source.kind === 'suno' ? source.id : undefined,
+      sourceDetails: source.kind === 'youtube' ? 'YouTube • Embedded playback' : 'Suno • Link imported',
+      imageUrl: metadata.thumbnail || (source.kind === 'youtube' ? `https://i.ytimg.com/vi/${source.id}/hqdefault.jpg` : undefined),
+      audioUrl: undefined,
+      audioDuration: undefined,
+      notes: [],
+      sections: [],
+      totalMeasures: 0,
+    };
+    onLoadSong(newSong);
+    setIsProcessing(false);
+    setStatusMessage(source.kind === 'youtube'
+      ? 'YouTube player loaded. To create a real note-by-note dizi score, attach a matching audio recording below.'
+      : 'Suno song link imported. Attach the audio file downloaded from your Suno account to transcribe it.');
+    setTranscribeMethod('upload');
   };
 
   // Real-time microphone whistling/humming transcription
@@ -220,10 +265,10 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
         </div>
 
         {/* Input Method Segmented Tabs */}
-        <div className="flex items-center gap-1 bg-[#111D20] p-1 rounded-lg border border-[#1A2E33] shrink-0">
+        <div className="grid grid-cols-3 sm:flex items-center gap-1 bg-[#111D20] p-1 rounded-lg border border-[#1A2E33] w-full sm:w-auto">
           <button
             onClick={() => setTranscribeMethod('upload')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+            className={`flex justify-center items-center gap-1.5 px-2 sm:px-3 py-2 rounded-md text-xs font-medium transition-colors ${
               transcribeMethod === 'upload'
                 ? 'bg-[#16272C] text-[#B4F45A] shadow-sm'
                 : 'text-[#94A3A7] hover:text-[#F3F5F4]'
@@ -234,7 +279,7 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
           </button>
           <button
             onClick={() => setTranscribeMethod('mic')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+            className={`flex justify-center items-center gap-1.5 px-2 sm:px-3 py-2 rounded-md text-xs font-medium transition-colors ${
               transcribeMethod === 'mic'
                 ? 'bg-[#16272C] text-[#B4F45A] shadow-sm'
                 : 'text-[#94A3A7] hover:text-[#F3F5F4]'
@@ -245,7 +290,7 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
           </button>
           <button
             onClick={() => setTranscribeMethod('url')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+            className={`flex justify-center items-center gap-1.5 px-2 sm:px-3 py-2 rounded-md text-xs font-medium transition-colors ${
               transcribeMethod === 'url'
                 ? 'bg-[#16272C] text-[#B4F45A] shadow-sm'
                 : 'text-[#94A3A7] hover:text-[#F3F5F4]'
@@ -258,9 +303,9 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
       </div>
 
       {/* 2. Transcription Input Cards */}
-      <div className="bg-[#111D20] border border-[#1A2E33] rounded-xl p-5">
+      <div className="bg-[#111D20] border border-[#1A2E33] rounded-xl p-3 sm:p-5">
         {transcribeMethod === 'upload' && (
-          <div className="flex flex-col items-center justify-center border-2 border-dashed border-[#1A2E33] hover:border-[#36B39B] rounded-xl p-8 text-center transition-colors">
+          <div className="flex flex-col items-center justify-center border-2 border-dashed border-[#1A2E33] hover:border-[#36B39B] rounded-xl p-4 sm:p-8 text-center transition-colors">
             <input
               type="file"
               ref={fileInputRef}
@@ -270,10 +315,12 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
             />
             <FileAudio className="w-10 h-10 text-[#36B39B] mb-3" />
             <h3 className="text-sm font-semibold text-[#F3F5F4]">
-              Upload Monophonic Audio (MP3, WAV, FLAC, M4A)
+              {currentSong.source === 'youtube' || currentSong.source === 'suno' ? 'Attach audio to imported song' : 'Upload Monophonic Audio'}
             </h3>
             <p className="text-xs text-[#94A3A7] mt-1 max-w-md">
-              Upload a flute solo, vocal hum, or clean melodic stem. Our pitch tracking engine extracts notes and generates corresponding Jianpu and Dizi hole diagrams.
+              {currentSong.source === 'youtube' || currentSong.source === 'suno'
+                ? `Use an audio file you have permission to analyze from the same ${currentSong.source === 'youtube' ? 'YouTube' : 'Suno'} song. Notes will synchronize to its playback timeline.`
+                : 'Upload a flute solo, vocal hum, or clean melodic stem (MP3/WAV and browser-supported formats). The pitch detector creates Jianpu notes and six-hole diagrams.'}
             </p>
             <button
               onClick={() => fileInputRef.current?.click()}
@@ -333,48 +380,50 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
         )}
 
         {transcribeMethod === 'url' && (
-          <div className="p-4 max-w-xl mx-auto space-y-4">
+          <div className="p-2 sm:p-4 max-w-xl mx-auto space-y-4">
             <div>
               <label className="block text-xs font-medium text-[#F3F5F4] mb-1">
                 YouTube URL or Suno AI Audio Track Link
               </label>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <input
-                  type="text"
+                  type="url"
                   value={youtubeUrl}
                   onChange={(e) => setYoutubeUrl(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') void handleImportUrl(); }}
                   placeholder="https://www.youtube.com/watch?v=... or https://suno.com/song/..."
-                  className="flex-1 bg-[#0E171A] border border-[#1A2E33] rounded-lg px-3 py-2 text-xs text-[#F3F5F4] focus:outline-none focus:border-[#36B39B]"
+                  className="flex-1 min-w-0 bg-[#0E171A] border border-[#1A2E33] rounded-lg px-3 py-2.5 text-xs text-[#F3F5F4] focus:outline-none focus:border-[#36B39B]"
                 />
                 <button
-                  onClick={() => {
-                    setStatusMessage('Synced with track. Loading synchronized score...');
-                    setTimeout(() => {
-                      setStatusMessage('Loaded synchronized track: Moon Over the Pass (Guan Shan Yue)!');
-                    }, 800);
-                  }}
-                  className="px-4 py-2 bg-[#B4F45A] text-[#0B1014] rounded-lg text-xs font-semibold hover:bg-[#c3f77a]"
+                  onClick={() => void handleImportUrl()}
+                  disabled={isProcessing}
+                  className="px-4 py-2.5 bg-[#B4F45A] text-[#0B1014] rounded-lg text-xs font-semibold hover:bg-[#c3f77a] disabled:opacity-50"
                 >
-                  Sync & Transcribe
+                  {isProcessing ? 'Importing…' : 'Import Link'}
                 </button>
               </div>
             </div>
             <p className="text-[11px] text-[#94A3A7] leading-relaxed">
-              Reference: JOE-Music YouTube player sync architecture. Transcribes audio and provides synced score playback with speed control and A-B loop practice.
+              YouTube videos play through the official embedded player. Suno links are saved with their source information. Transcription requires actual accessible audio; the iframe itself cannot provide audio samples.
             </p>
           </div>
         )}
 
         {statusMessage && (
-          <div className="mt-4 p-3 bg-[#0E171A] border border-[#1A2E33] rounded-lg text-xs text-[#B4F45A] flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-[#36B39B] shrink-0" />
+          <div role="status" className={`mt-4 p-3 bg-[#0E171A] border rounded-lg text-xs flex items-center gap-2 ${statusError ? 'border-amber-600/50 text-amber-200' : 'border-[#1A2E33] text-[#B4F45A]'}`}>
+            {statusError ? <AlertCircle className="w-4 h-4 shrink-0" /> : <CheckCircle2 className="w-4 h-4 text-[#36B39B] shrink-0" />}
             <span>{statusMessage}</span>
           </div>
         )}
       </div>
 
       {/* 3. Interactive Note List & Transcribed Score Editor */}
-      <div className="bg-[#111D20] border border-[#1A2E33] rounded-xl p-5">
+      <details className="bg-[#111D20] border border-[#1A2E33] rounded-xl p-3 sm:p-5 group">
+        <summary className="flex items-center justify-between cursor-pointer list-none text-sm font-semibold text-[#F3F5F4]">
+          Edit detected notes ({currentSong.notes.length})
+          <ChevronDown className="w-4 h-4 text-[#36B39B] group-open:rotate-180 transition-transform" />
+        </summary>
+        <div className="mt-4">
         <div className="flex items-center justify-between pb-3 border-b border-[#1A2E33] mb-4">
           <div className="flex items-center gap-2">
             <Music className="w-4 h-4 text-[#B4F45A]" />
@@ -456,7 +505,8 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
             </tbody>
           </table>
         </div>
-      </div>
+        </div>
+      </details>
     </div>
   );
 };

@@ -89,18 +89,24 @@ export class PitchDetector {
 
     let bestPeriod = -1;
     let maxCorrelation = 0;
+    const correlations = new Float32Array(maxPeriod + 1);
 
-    for (let period = minPeriod; period <= maxPeriod; period++) {
+    const correlationAt = (period: number): number => {
       let correlation = 0;
       let norm1 = 0;
       let norm2 = 0;
-      for (let i = 0; i < buf.length - period; i += 2) {
+      for (let i = 0; i < buf.length - period; i += 4) {
         correlation += buf[i] * buf[i + period];
         norm1 += buf[i] * buf[i];
         norm2 += buf[i + period] * buf[i + period];
       }
       const norm = Math.sqrt(norm1 * norm2);
-      const normalizedCorr = norm > 0 ? correlation / norm : 0;
+      return norm > 0 ? correlation / norm : 0;
+    };
+
+    for (let period = minPeriod; period <= maxPeriod; period++) {
+      const normalizedCorr = correlationAt(period);
+      correlations[period] = normalizedCorr;
 
       if (normalizedCorr > maxCorrelation) {
         maxCorrelation = normalizedCorr;
@@ -112,18 +118,27 @@ export class PitchDetector {
       return null;
     }
 
+    // The strongest autocorrelation peak may be at 2x/3x the true period.
+    // Prefer the first strong local peak to avoid octave/subharmonic errors.
+    const peakThreshold = Math.max(0.72, maxCorrelation * 0.94);
+    for (let period = minPeriod + 1; period < maxPeriod; period++) {
+      if (correlations[period] >= peakThreshold &&
+          correlations[period] >= correlations[period - 1] &&
+          correlations[period] >= correlations[period + 1]) {
+        bestPeriod = period;
+        maxCorrelation = correlations[period];
+        break;
+      }
+    }
+
     // Parabolic interpolation around peak period for fine cents precision
     let refinedPeriod = bestPeriod;
     if (bestPeriod > minPeriod && bestPeriod < maxPeriod) {
-      const p = bestPeriod;
-      let cPrev = 0, cNext = 0;
-      for (let i = 0; i < buf.length - p; i += 2) {
-        cPrev += buf[i] * buf[i + (p - 1)];
-        cNext += buf[i] * buf[i + (p + 1)];
-      }
+      const cPrev = correlationAt(bestPeriod - 1);
+      const cNext = correlationAt(bestPeriod + 1);
       const denom = (2 * maxCorrelation - cPrev - cNext);
-      if (denom !== 0) {
-        refinedPeriod = bestPeriod + (cPrev - cNext) / (2 * denom);
+      if (Math.abs(denom) > 1e-6) {
+        refinedPeriod = bestPeriod + Math.max(-0.5, Math.min(0.5, (cNext - cPrev) / (2 * denom)));
       }
     }
 
@@ -152,14 +167,22 @@ export class PitchDetector {
     startTime: number;
     duration: number;
   }> {
-    const channelData = audioBuffer.getChannelData(0);
-    const sampleRate = audioBuffer.sampleRate;
+    return this.analyzeMelodyFromSamples(audioBuffer.getChannelData(0), audioBuffer.sampleRate);
+  }
+
+  public analyzeMelodyFromSamples(channelData: Float32Array, sampleRate: number, onProgress?: (percent: number) => void): Array<{
+    pitch: string;
+    midi: number;
+    startTime: number;
+    duration: number;
+  }> {
     const windowSize = 2048;
-    const hopSize = 512; // ~11ms
+    const hopSize = 768;
     const detectedPitches: Array<{ time: number; midi: number; pitch: string }> = [];
 
     const tempBuf = new Float32Array(windowSize);
     for (let offset = 0; offset + windowSize < channelData.length; offset += hopSize) {
+      if (onProgress && offset % (hopSize * 200) === 0) onProgress(Math.round(offset / channelData.length * 100));
       tempBuf.set(channelData.subarray(offset, offset + windowSize));
       const result = this.detectPitchFromBuffer(tempBuf, sampleRate);
       const time = offset / sampleRate;
@@ -216,6 +239,8 @@ export class PitchDetector {
         duration: finalDur
       });
     }
+
+    onProgress?.(100);
 
     return notes;
   }

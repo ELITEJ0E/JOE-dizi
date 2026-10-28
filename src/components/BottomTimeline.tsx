@@ -7,6 +7,9 @@ interface BottomTimelineProps {
   activeNoteIndex: number;
   onSeekToNote: (index: number) => void;
   onSeekToMeasure: (measure: number) => void;
+  currentTimeSeconds?: number;
+  durationSeconds?: number;
+  onSeekPercent?: (percent: number) => void;
   className?: string;
 }
 
@@ -15,6 +18,9 @@ export const BottomTimeline: React.FC<BottomTimelineProps> = ({
   activeNoteIndex,
   onSeekToNote,
   onSeekToMeasure,
+  currentTimeSeconds,
+  durationSeconds,
+  onSeekPercent,
   className = ''
 }) => {
   const [activeTab, setActiveTab] = useState<'timeline' | 'sections' | 'loop'>('timeline');
@@ -24,13 +30,21 @@ export const BottomTimeline: React.FC<BottomTimelineProps> = ({
 
   const totalNotes = song.notes.length;
   const currentNote = song.notes[activeNoteIndex] || song.notes[0];
-  const progressPercent = totalNotes > 0 ? (activeNoteIndex / (totalNotes - 1)) * 100 : 0;
+  const hasMediaTime = durationSeconds !== undefined && durationSeconds > 0;
+  const progressPercent = hasMediaTime
+    ? Math.min(100, Math.max(0, (currentTimeSeconds || 0) / durationSeconds * 100))
+    : totalNotes > 1 ? (activeNoteIndex / (totalNotes - 1)) * 100 : 0;
 
   const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!timelineRef.current || totalNotes === 0) return;
+    if (!timelineRef.current) return;
     const rect = timelineRef.current.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
     const ratio = Math.max(0, Math.min(1, clickX / rect.width));
+    if (hasMediaTime && onSeekPercent) {
+      onSeekPercent(ratio * 100);
+      return;
+    }
+    if (totalNotes === 0) return;
     const targetIdx = Math.round(ratio * (totalNotes - 1));
     onSeekToNote(targetIdx);
   };
@@ -39,14 +53,15 @@ export const BottomTimeline: React.FC<BottomTimelineProps> = ({
     onSeekToMeasure(section.startMeasure);
   };
 
-  const timeTicks = ['00:00', '00:30', '01:00', '01:30', '02:00', '02:30', '03:00', '03:42'];
+  const formatTime = (seconds: number) => `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`;
+  const timeTicks = Array.from({ length: 5 }, (_, i) => formatTime((hasMediaTime ? durationSeconds : totalNotes * 60 / Math.max(song.bpm, 1)) * i / 4));
 
   return (
     <footer className={`bg-[#0B1014] border-t border-[#16272C] p-4 select-none ${className}`}>
       {/* 1. Header Toolbar: Tabs on Left + Zoom/Fit on Right */}
-      <div className="flex items-center justify-between pb-2.5 mb-2 border-b border-[#16272C]/70">
+      <div className="flex items-center justify-between gap-2 overflow-x-auto pb-2.5 mb-2 border-b border-[#16272C]/70">
         {/* Left Tabs */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 shrink-0">
           <button
             onClick={() => setActiveTab('timeline')}
             className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
@@ -80,7 +95,7 @@ export const BottomTimeline: React.FC<BottomTimelineProps> = ({
         </div>
 
         {/* Right Zoom Controls */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 shrink-0">
           <div className="flex items-center gap-1.5 text-xs text-[#94A3A7]">
             <button
               onClick={() => setZoomLevel(Math.max(50, zoomLevel - 20))}
@@ -183,6 +198,9 @@ export const BottomTimeline: React.FC<BottomTimelineProps> = ({
                     ? 'bg-[#36B39B]'
                     : 'bg-[#283C41]'
                 }`}
+                style={hasMediaTime && n.startTime !== undefined ? {
+                  position: 'absolute', left: `${Math.min(100, n.startTime / durationSeconds * 100)}%`
+                } : undefined}
                 title={`M${n.measureNumber}: ${n.pitch}`}
               />
             );

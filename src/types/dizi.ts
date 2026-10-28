@@ -63,6 +63,8 @@ export interface DiziNote {
   beatInMeasure: number;
   holes?: SixHoles;
   register?: BreathRegister;
+  startTime?: number;         // Seconds in the source audio/video, when transcribed from audio
+  durationSeconds?: number;   // Actual detected note length before beat quantization
 }
 
 export interface SongSection {
@@ -81,6 +83,12 @@ export interface Song {
   artistEn: string;
   source: 'preset' | 'upload' | 'youtube' | 'suno';
   sourceDetails?: string;     // e.g. "YouTube • Synced", "Audio File", "Suno AI Gen"
+  imageUrl?: string;
+  sourceUrl?: string;         // Original user-supplied share URL
+  youtubeVideoId?: string;    // Embedded through the official YouTube IFrame API
+  sunoClipId?: string;
+  audioUrl?: string;          // Authorized media URL or a temporary local object URL
+  audioDuration?: number;     // Actual media duration in seconds when known
   diziKey: DiziKey;
   fingeringSystem: FingeringSystem;
   musicalKey: string;         // e.g. "1 = G", "1 = D"

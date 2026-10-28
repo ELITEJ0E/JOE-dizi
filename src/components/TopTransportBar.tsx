@@ -11,11 +11,14 @@ import {
   ChevronDown,
   Volume2,
   VolumeX,
-  Target
+  Target,
+  Menu
 } from 'lucide-react';
 import { diziAudio } from '../audio/diziSynth';
 
 interface TopTransportBarProps {
+  onOpenMobileMenu?: () => void;
+  playbackAvailable?: boolean;
   currentSong: Song;
   isPlaying: boolean;
   onPlayPauseToggle: () => void;
@@ -37,6 +40,8 @@ interface TopTransportBarProps {
 }
 
 export const TopTransportBar: React.FC<TopTransportBarProps> = ({
+  onOpenMobileMenu,
+  playbackAvailable = true,
   currentSong,
   isPlaying,
   onPlayPauseToggle,
@@ -83,11 +88,15 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
   const speeds = [0.5, 0.75, 1.0, 1.25, 1.5];
 
   return (
-    <header className={`bg-[#0B1014] border-b border-[#16272C] px-4 py-2.5 flex items-center justify-between gap-4 select-none ${className}`}>
+    <header className={`bg-[#0B1014] border-b border-[#16272C] px-3 sm:px-4 py-2.5 flex flex-wrap lg:flex-nowrap items-center justify-between gap-2 sm:gap-4 select-none ${className}`}>
       {/* 1. Left Zone: Current Song Card */}
-      <div className="flex items-center gap-3 shrink-0 min-w-0 max-w-[280px]">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 lg:flex-none max-w-[280px]">
+        {onOpenMobileMenu && <button onClick={onOpenMobileMenu} aria-label="Open navigation" className="md:hidden rounded-lg border border-[#1A2E33] p-2 text-[#B4F45A] shrink-0"><Menu className="w-4 h-4" /></button>}
         {/* Album Art / Traditional Pagoda & Moon thumbnail */}
-        <div className="relative w-11 h-11 rounded-lg bg-[#111D20] border border-[#1A2E33] overflow-hidden flex items-center justify-center shrink-0 shadow-md">
+        <div className="relative w-9 h-9 sm:w-11 sm:h-11 rounded-lg bg-[#111D20] border border-[#1A2E33] overflow-hidden flex items-center justify-center shrink-0 shadow-md">
+          {currentSong.imageUrl ? (
+            <img src={currentSong.imageUrl} alt="Song artwork" className="w-full h-full object-cover" />
+          ) : (
           <svg viewBox="0 0 44 44" className="w-full h-full">
             <rect width="44" height="44" fill="#0E1A1D" />
             <circle cx="28" cy="14" r="8" fill="#F4ECE1" opacity="0.8" />
@@ -101,6 +110,7 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
               fill="#12252A"
             />
           </svg>
+          )}
         </div>
 
         {/* Title & Source Indicator */}
@@ -109,10 +119,10 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
             {currentSong.titleEn}
           </h1>
           <div className="flex items-center gap-1.5 mt-0.5 text-xs text-[#94A3A7]">
-            <span className="text-[11px] font-serif text-[#36B39B]">
+            <span className="text-[11px] font-serif text-[#36B39B] hidden sm:inline">
               {currentSong.titleZh}
             </span>
-            <span aria-hidden="true" className="text-slate-600">·</span>
+            <span aria-hidden="true" className="text-slate-600 hidden sm:inline">·</span>
             <div className="flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-[#B4F45A] animate-pulse" />
               <span className="text-[11px] text-[#94A3A7] truncate">
@@ -124,7 +134,7 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
       </div>
 
       {/* 2. Center Zone: Playback Transport & Waveform */}
-      <div className="flex-1 max-w-2xl flex items-center gap-4">
+      <div className="order-3 lg:order-none w-full lg:w-auto flex-1 max-w-full lg:max-w-2xl flex items-center gap-2 sm:gap-4 min-w-0">
         {/* Transport buttons */}
         <div className="flex items-center gap-1 shrink-0">
           <button
@@ -137,8 +147,9 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
 
           <button
             onClick={onPlayPauseToggle}
-            className="w-9 h-9 rounded-full bg-[#B4F45A] text-[#0B1014] flex items-center justify-center hover:bg-[#c3f77a] hover:scale-105 active:scale-95 transition-all shadow-[0_0_15px_rgba(180,244,90,0.3)]"
-            title={isPlaying ? 'Pause' : 'Play Dizi'}
+            disabled={!playbackAvailable}
+            className="w-9 h-9 rounded-full bg-[#B4F45A] text-[#0B1014] flex items-center justify-center hover:bg-[#c3f77a] hover:scale-105 active:scale-95 transition-all shadow-[0_0_15px_rgba(180,244,90,0.3)] disabled:opacity-30 disabled:cursor-not-allowed"
+            title={!playbackAvailable ? 'Use the embedded Suno player or attach audio' : isPlaying ? 'Pause' : 'Play'}
           >
             {isPlaying ? (
               <Pause className="w-4 h-4 fill-current" />
@@ -167,7 +178,7 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
         <div
           ref={waveformRef}
           onClick={handleWaveformClick}
-          className="flex-1 h-7 bg-[#111D20] border border-[#1A2E33] rounded-md px-2 flex items-center gap-0.5 cursor-pointer relative group overflow-hidden"
+          className="flex-1 min-w-10 h-7 bg-[#111D20] border border-[#1A2E33] rounded-md px-2 flex items-center gap-0.5 cursor-pointer relative group overflow-hidden"
           title="Click to seek"
         >
           {/* Progress fill overlay */}
@@ -201,7 +212,8 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
         <div className="relative shrink-0">
           <button
             onClick={() => setSpeedDropdownOpen(!speedDropdownOpen)}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-[#111D20] border border-[#1A2E33] text-xs font-mono text-[#F3F5F4] hover:border-[#36B39B] transition-colors"
+            disabled={!playbackAvailable}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-[#111D20] border border-[#1A2E33] text-xs font-mono text-[#F3F5F4] hover:border-[#36B39B] transition-colors disabled:opacity-40"
           >
             <span>{playbackSpeed}x</span>
             <ChevronDown className="w-3 h-3 text-[#94A3A7]" />
@@ -255,7 +267,7 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
       </div>
 
       {/* 3. Right Zone: Action buttons */}
-      <div className="flex items-center gap-2.5 shrink-0">
+      <div className="order-2 lg:order-none flex items-center gap-1.5 sm:gap-2.5 shrink-0">
         {/* Practice Mode Toggle */}
         <button
           onClick={onPracticeModeToggle}
@@ -270,7 +282,7 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
               isPracticeMode ? 'bg-[#B4F45A] shadow-[0_0_6px_#B4F45A]' : 'bg-[#4B5E63]'
             }`}
           />
-          <span>Practice mode</span>
+          <span className="hidden xl:inline">Practice mode</span>
         </button>
 
         {/* Export Sheet Button */}
@@ -279,7 +291,7 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
           className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-[#B4F45A] text-[#0B1014] hover:bg-[#c3f77a] transition-all shadow-sm"
         >
           <Share2 className="w-3.5 h-3.5" />
-          <span>Export Sheet</span>
+          <span className="hidden sm:inline">Export Sheet</span>
         </button>
 
         {/* Studio Settings */}

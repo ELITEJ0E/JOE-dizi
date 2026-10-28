@@ -63,9 +63,9 @@ export const SheetMusicView: React.FC<SheetMusicViewProps> = ({
   };
 
   return (
-    <div className={`relative xuan-paper rounded-xl shadow-2xl p-6 sm:p-8 text-[#1D2928] overflow-hidden select-none border border-[#E5DFD0] ${className}`}>
+    <div className={`relative xuan-paper rounded-xl shadow-2xl p-3 sm:p-8 text-[#1D2928] overflow-hidden select-none border border-[#E5DFD0] ${className}`}>
       {/* Decorative Ink Wash Mountain Watermark & Calligraphy header */}
-      <div className="absolute top-0 right-0 w-80 sm:w-96 h-40 pointer-events-none opacity-45 overflow-hidden">
+      <div className="absolute top-0 right-0 w-80 sm:w-96 h-40 pointer-events-none opacity-45 overflow-hidden hidden sm:block">
         {/* Artistic SVG Ink Mountain Range & Moon */}
         <svg viewBox="0 0 400 160" className="w-full h-full">
           {/* Pale Moon */}
@@ -92,7 +92,7 @@ export const SheetMusicView: React.FC<SheetMusicViewProps> = ({
       </div>
 
       {/* Traditional Calligraphy Title Stamp & Seal */}
-      <div className="absolute top-6 right-6 flex items-start gap-3 pointer-events-none">
+      <div className="absolute top-6 right-6 hidden sm:flex items-start gap-3 pointer-events-none">
         {/* Vertical Chinese Calligraphy Title */}
         <div className="text-right">
           <div className="font-calligraphy text-2xl font-bold tracking-widest text-[#242A28] leading-tight writing-vertical">
@@ -115,10 +115,10 @@ export const SheetMusicView: React.FC<SheetMusicViewProps> = ({
 
       {/* Sheet Music Header Metadata */}
       <div className="mb-6 relative z-10">
-        <h2 className="text-2xl sm:text-3xl font-serif font-bold tracking-tight text-[#111A19]">
-          Verse 01
+        <h2 className="text-xl sm:text-3xl font-serif font-bold tracking-tight text-[#111A19]">
+          {song.sections[0]?.name || song.titleEn || 'Transcription'}
         </h2>
-        <div className="flex flex-wrap items-center gap-5 mt-2 text-sm font-serif font-medium text-[#3E4947]">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-5 mt-2 text-sm font-serif font-medium text-[#3E4947]">
           <span className="font-bold">{song.musicalKey}</span>
           <span>{song.timeSignature}</span>
           <span className="flex items-center gap-1 font-mono text-xs">
@@ -135,7 +135,7 @@ export const SheetMusicView: React.FC<SheetMusicViewProps> = ({
         {measureRows.map((rowMeasures, rowIdx) => (
           <div key={rowIdx} className="border-b border-[#DCD5C5] pb-6 last:border-b-0">
             {/* 1. Chords Row (aligned above measures) */}
-            <div className="grid grid-cols-4 gap-2 mb-2 px-1">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2 px-1">
               {rowMeasures.map(([mNum, mData]) => (
                 <div key={mNum} className="text-xs font-mono font-bold text-[#4B6960] tracking-wide">
                   {mData.chord ? `${mData.chord}` : ''}
@@ -144,7 +144,7 @@ export const SheetMusicView: React.FC<SheetMusicViewProps> = ({
             </div>
 
             {/* 2. Main Notation Row (Jianpu + Staff) */}
-            <div className="grid grid-cols-4 gap-2 border-l border-[#8E8675] border-r">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 border-l border-[#8E8675] border-r">
               {rowMeasures.map(([mNum, mData], colIdx) => (
                 <div
                   key={mNum}
