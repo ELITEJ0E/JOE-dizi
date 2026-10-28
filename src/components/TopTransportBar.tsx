@@ -16,6 +16,7 @@ import {
 import { diziAudio } from '../audio/diziSynth';
 import { StudioSelect } from './StudioSelect';
 import { PWAInstallButton } from './PWAInstallButton';
+import { useLanguage } from '../i18n/LanguageContext';
 
 interface TopTransportBarProps {
   onOpenMobileMenu?: () => void;
@@ -62,6 +63,7 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
   onSeek,
   className = ''
 }) => {
+  const { t } = useLanguage();
   const [isMuted, setIsMuted] = useState(false);
   const waveformRef = useRef<HTMLDivElement>(null);
 
@@ -88,12 +90,12 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
   const speeds = [0.5, 0.75, 1.0, 1.25, 1.5];
 
   return (
-    <header className={`bg-[#0B1014] border-b border-[#16272C] px-3 sm:px-4 py-2.5 flex flex-wrap lg:flex-nowrap items-center justify-between gap-2 sm:gap-4 select-none ${className}`}>
+    <header className={`bg-[#0B1014] border-b border-[#16272C] px-2 sm:px-3 py-1.5 flex flex-wrap lg:flex-nowrap items-center justify-between gap-1.5 lg:gap-2 select-none shrink-0 ${className}`}>
       {/* 1. Left Zone: Current Song Card */}
-      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 lg:flex-none max-w-[280px]">
-        {onOpenMobileMenu && <button onClick={onOpenMobileMenu} aria-label="Open navigation" className="md:hidden rounded-lg border border-[#1A2E33] p-2 text-[#B4F45A] shrink-0"><Menu className="w-4 h-4" /></button>}
+      <div className="flex items-center gap-2 min-w-0 flex-1 lg:flex-none lg:w-[clamp(140px,17vw,235px)] max-w-[245px]">
+        {onOpenMobileMenu && <button onClick={onOpenMobileMenu} aria-label={t('Open navigation', '打开导航')} className="md:hidden rounded-lg border border-[#1A2E33] p-1.5 text-[#B4F45A] shrink-0"><Menu className="w-4 h-4" /></button>}
         {/* Album Art / Traditional Pagoda & Moon thumbnail */}
-        <div className="relative w-9 h-9 sm:w-11 sm:h-11 rounded-lg bg-[#111D20] border border-[#1A2E33] overflow-hidden flex items-center justify-center shrink-0 shadow-md">
+        <div className="relative w-8 h-8 rounded-lg bg-[#111D20] border border-[#1A2E33] overflow-hidden flex items-center justify-center shrink-0 shadow-md">
           {currentSong.imageUrl ? (
             <img src={currentSong.imageUrl} alt="Song artwork" className="w-full h-full object-cover" />
           ) : (
@@ -115,18 +117,14 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
 
         {/* Title & Source Indicator */}
         <div className="min-w-0">
-          <h1 className="text-sm font-semibold text-[#F3F5F4] truncate tracking-tight">
+          <h1 className="text-xs sm:text-[13px] font-semibold text-[#F3F5F4] truncate tracking-tight">
             {currentSong.titleEn}
           </h1>
-          <div className="flex items-center gap-1.5 mt-0.5 text-xs text-[#94A3A7]">
-            <span className="text-[11px] font-serif text-[#36B39B] hidden sm:inline">
-              {currentSong.titleZh}
-            </span>
-            <span aria-hidden="true" className="text-slate-600 hidden sm:inline">·</span>
+          <div className="flex items-center gap-1 mt-0.5 text-[10px] text-[#94A3A7]">
             <div className="flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-[#B4F45A] animate-pulse" />
-              <span className="text-[11px] text-[#94A3A7] truncate">
-                {currentSong.sourceDetails || 'Synced'}
+              <span className="text-[10px] text-[#94A3A7] truncate">
+                {(currentSong.sourceDetails || 'Synced').replace(/^(Suno|YouTube)(?=\s*•)/, 'URL')}
               </span>
             </div>
           </div>
@@ -134,13 +132,13 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
       </div>
 
       {/* 2. Center Zone: Playback Transport & Waveform */}
-      <div className="order-3 lg:order-none w-full lg:w-auto flex-1 max-w-full lg:max-w-2xl flex items-center gap-2 sm:gap-4 min-w-0">
+      <div className="order-3 lg:order-none w-full lg:w-auto flex-1 max-w-full flex items-center gap-1.5 lg:gap-2.5 min-w-0">
         {/* Transport buttons */}
         <div className="flex items-center gap-1 shrink-0">
           <button
             onClick={onPrevNote}
-            className="p-1.5 rounded-lg text-[#94A3A7] hover:text-[#F3F5F4] hover:bg-[#111D20] transition-colors"
-            title="Previous Note / Measure"
+            className="p-1 rounded-lg text-[#94A3A7] hover:text-[#F3F5F4] hover:bg-[#111D20] transition-colors"
+            title={t('Previous Note / Measure', '上一音 / 小节')}
           >
             <SkipBack className="w-4 h-4" />
           </button>
@@ -148,8 +146,8 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
           <button
             onClick={onPlayPauseToggle}
             disabled={!playbackAvailable}
-            className="w-9 h-9 rounded-full bg-[#B4F45A] text-[#0B1014] flex items-center justify-center hover:bg-[#c3f77a] hover:scale-105 active:scale-95 transition-all shadow-[0_0_15px_rgba(180,244,90,0.3)] disabled:opacity-30 disabled:cursor-not-allowed"
-            title={!playbackAvailable ? 'Use the embedded Suno player or attach audio' : isPlaying ? 'Pause' : 'Play'}
+            className="w-8 h-8 rounded-full bg-[#B4F45A] text-[#0B1014] flex items-center justify-center hover:bg-[#c3f77a] hover:scale-105 active:scale-95 transition-all shadow-[0_0_15px_rgba(180,244,90,0.3)] disabled:opacity-30 disabled:cursor-not-allowed"
+            title={!playbackAvailable ? t('Attach audio to play', '请先导入音频') : isPlaying ? t('Pause', '暂停') : t('Play', '播放')}
           >
             {isPlaying ? (
               <Pause className="w-4 h-4 fill-current" />
@@ -160,15 +158,15 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
 
           <button
             onClick={onNextNote}
-            className="p-1.5 rounded-lg text-[#94A3A7] hover:text-[#F3F5F4] hover:bg-[#111D20] transition-colors"
-            title="Next Note / Measure"
+            className="p-1 rounded-lg text-[#94A3A7] hover:text-[#F3F5F4] hover:bg-[#111D20] transition-colors"
+            title={t('Next Note / Measure', '下一音 / 小节')}
           >
             <SkipForward className="w-4 h-4" />
           </button>
         </div>
 
         {/* Timestamp: 01:24 / 03:42 */}
-        <div className="font-mono text-xs tabular-nums text-[#94A3A7] shrink-0">
+        <div className="font-mono text-[10px] sm:text-[11px] tabular-nums text-[#94A3A7] shrink-0">
           <span className="text-[#F3F5F4] font-medium">{currentTimeFormatted}</span>
           <span className="text-[#4E5C60] mx-1">/</span>
           <span>{totalDurationFormatted}</span>
@@ -178,8 +176,8 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
         <div
           ref={waveformRef}
           onClick={handleWaveformClick}
-          className="flex-1 min-w-10 h-7 bg-[#111D20] border border-[#1A2E33] rounded-md px-2 flex items-center gap-0.5 cursor-pointer relative group overflow-hidden"
-          title="Click to seek"
+          className="flex-1 min-w-8 h-5 bg-[#111D20] border border-[#1A2E33] rounded-md px-1.5 flex items-center gap-0.5 cursor-pointer relative group overflow-hidden"
+          title={t('Click to seek', '点击跳转')}
         >
           {/* Progress fill overlay */}
           <div
@@ -210,9 +208,9 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
 
         {/* Unified accessible dropdown — default speed is 1.0x. */}
         <StudioSelect
-          label="Playback speed"
+          label={t('Playback speed', '播放速度')}
           compact
-          className="w-[78px] shrink-0 font-mono"
+          className="w-[70px] shrink-0 font-mono"
           value={String(playbackSpeed)}
           onChange={(speed) => onSpeedChange(Number(speed))}
           disabled={!playbackAvailable}
@@ -222,12 +220,12 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
         {/* Loop Toggle */}
         <button
           onClick={onLoopToggle}
-          className={`p-1.5 rounded-lg border transition-colors shrink-0 ${
+          className={`p-1 rounded-lg border transition-colors shrink-0 ${
             isLooping
               ? 'bg-[#B4F45A]/20 border-[#B4F45A] text-[#B4F45A]'
               : 'bg-[#111D20] border-[#1A2E33] text-[#94A3A7] hover:text-[#F3F5F4]'
           }`}
-          title={isLooping ? 'Loop Active' : 'Enable Loop'}
+          title={isLooping ? t('Loop active', '循环已开启') : t('Enable loop', '开启循环')}
         >
           <Repeat className="w-3.5 h-3.5" />
         </button>
@@ -235,24 +233,24 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
         {/* Mute button */}
         <button
           onClick={handleToggleMute}
-          className={`p-1.5 rounded-lg border transition-colors shrink-0 ${
+          className={`p-1 rounded-lg border transition-colors shrink-0 ${
             isMuted
               ? 'bg-red-500/20 border-red-500 text-red-400'
               : 'bg-[#111D20] border-[#1A2E33] text-[#94A3A7] hover:text-[#F3F5F4]'
           }`}
-          title={isMuted ? 'Unmute Dizi Sound' : 'Mute Dizi Sound'}
+          title={isMuted ? t('Unmute dizi', '取消静音') : t('Mute dizi', '笛音静音')}
         >
           {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
         </button>
       </div>
 
       {/* 3. Right Zone: Action buttons */}
-      <div className="order-2 lg:order-none flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+      <div className="order-2 lg:order-none flex items-center gap-1 sm:gap-1.5 shrink-0">
         <PWAInstallButton />
         {/* Practice Mode Toggle */}
         <button
           onClick={onPracticeModeToggle}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+          className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
             isPracticeMode
               ? 'bg-[#16272C] border-[#B4F45A] text-[#B4F45A]'
               : 'bg-[#111D20] border-[#1A2E33] text-[#94A3A7] hover:text-[#F3F5F4]'
@@ -263,23 +261,23 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
               isPracticeMode ? 'bg-[#B4F45A] shadow-[0_0_6px_#B4F45A]' : 'bg-[#4B5E63]'
             }`}
           />
-          <span className="hidden xl:inline">Practice mode</span>
+          <span className="hidden 2xl:inline">{t('Practice mode', '练习模式')}</span>
         </button>
 
         {/* Export Sheet Button */}
         <button
           onClick={onOpenExport}
-          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-[#B4F45A] text-[#0B1014] hover:bg-[#c3f77a] transition-all shadow-sm"
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-[#B4F45A] text-[#0B1014] hover:bg-[#c3f77a] transition-all shadow-sm"
         >
           <Share2 className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">Export Sheet</span>
+          <span className="hidden xl:inline">{t('Export Sheet', '导出乐谱')}</span>
         </button>
 
         {/* Studio Settings */}
         <button
           onClick={onOpenSettings}
-          className="p-1.5 rounded-lg bg-[#111D20] border border-[#1A2E33] text-[#94A3A7] hover:text-[#F3F5F4] transition-colors"
-          title="Studio Settings"
+          className="p-1 rounded-lg bg-[#111D20] border border-[#1A2E33] text-[#94A3A7] hover:text-[#F3F5F4] transition-colors"
+          title={t('Studio Settings', '工作室设置')}
         >
           <Sliders className="w-4 h-4" />
         </button>

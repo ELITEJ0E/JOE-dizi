@@ -5,6 +5,7 @@ import { calculateMusicalTonic, findFingering, getJianpuForMidi, pitchNameToMidi
 import { diziAudio } from './audio/diziSynth';
 import { rememberCurrentSong, restoreCurrentSong, saveUserSong } from './utils/songStorage';
 import { getAudioFile } from './utils/audioLibrary';
+import { useLanguage } from './i18n/LanguageContext';
 
 // Components
 import { Sidebar } from './components/Sidebar';
@@ -31,6 +32,7 @@ import { DiziTunerView } from './components/views/DiziTunerView';
 import { ChevronDown, Home, Music, BookOpen, Activity, Menu, Upload, ExternalLink, Clock3 } from 'lucide-react';
 
 export default function App() {
+  const { t } = useLanguage();
   // Navigation & View state
   const [currentView, setCurrentView] = useState<ViewMode>(() => {
     const requested = new URLSearchParams(window.location.search).get('view');
@@ -103,6 +105,7 @@ export default function App() {
     setMediaDuration(song.audioDuration || 0);
     setYoutubeSeekRequest(null);
     setCurrentView('transcribe');
+    setShowImporter(song.notes.length === 0);
     saveUserSong(song);
     rememberCurrentSong(song.id);
   }, []);
@@ -383,7 +386,7 @@ export default function App() {
         )}
 
         {/* Dynamic Center Workstation Content */}
-        <main className="flex-1 min-h-0 overflow-y-auto p-3 pb-24 sm:p-6 md:pb-6">
+        <main data-score-scroll-viewport className="flex-1 min-h-0 min-w-0 overflow-y-auto overscroll-contain px-2.5 pt-2 pb-24 sm:px-3 md:px-3.5 md:pb-3">
           {currentView === 'overview' && (
             <OverviewView onNavigate={setCurrentView} diziKey={diziKey} />
           )}
@@ -391,10 +394,10 @@ export default function App() {
           {currentView === 'transcribe' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-xs text-[#94A3A7]">Import a new song or open its synchronized score</span>
+                <span className="text-[11px] text-[#94A3A7]">{t('Import a new song or view its synchronized score', '导入乐曲或查看同步乐谱')}</span>
                 <button onClick={() => setShowImporter(previous => !previous)}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-[#1A2E33] bg-[#111D20] px-3 py-2 text-xs text-[#B4F45A] shrink-0">
-                  <Upload className="w-3.5 h-3.5" /> {showImporter ? 'Hide importer' : 'Import song'}
+                  <Upload className="w-3.5 h-3.5" /> {showImporter ? t('Hide importer', '收起导入') : t('Import song', '导入乐曲')}
                 </button>
               </div>
 
@@ -423,27 +426,16 @@ export default function App() {
                 </div>
               )}
 
-              {currentSong.source === 'suno' && currentSong.sourceUrl && (
-                <div className="rounded-xl border border-[#1A2E33] bg-[#111D20] overflow-hidden">
-                  <div className="p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <p className="text-xs text-[#94A3A7]">{currentSong.audioUrl ? 'Suno audio ready in the studio transport. The score follows the detected note timing.' : 'The Suno link was saved. To transcribe this track, import an authorized audio file above if online audio was unavailable.'}</p>
-                    <a href={currentSong.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-[#B4F45A] flex items-center gap-1 shrink-0">
-                      Open on Suno <ExternalLink className="w-3.5 h-3.5" />
-                    </a>
-                  </div>
-                </div>
-              )}
-
               {currentSong.notes.length === 0 && (
                 <div className="border border-amber-700/40 bg-amber-500/5 text-amber-200 rounded-xl p-4 flex items-start gap-2 text-xs leading-relaxed">
-                  <Clock3 className="w-4 h-4 shrink-0" /> No note transcription yet. Suno imports attempt to analyze accessible audio automatically; YouTube playback needs a separate authorized audio recording for note analysis.
+                  <Clock3 className="w-4 h-4 shrink-0" /> {t('No notes transcribed yet. Use URL extraction above or attach a matching recording.', '暂无转谱音符。请使用上方的网址提取功能或上传对应录音。')}
                 </div>
               )}
               {/* Header Title & Instrument Controls Strip (matches screenshot) */}
-              <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[#16272C]">
-                <div className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0">
-                  <h2 className="text-xl sm:text-2xl font-serif font-bold tracking-tight text-[#F3F5F4]">
-                    Dizi Transcription
+              <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-[#16272C]">
+                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 min-w-0">
+                  <h2 className="text-base sm:text-lg font-serif font-bold tracking-tight text-[#F3F5F4]">
+                    {t('Dizi Transcription', '笛子转谱')}
                   </h2>
                   <span className="text-[#3E5054] font-mono">|</span>
 
@@ -469,7 +461,7 @@ export default function App() {
 
                   {/* Dropdown 4: Notation Format (e.g. Jianpu ▾) */}
                   <StudioSelect label="Select Notation Format" compact value={notationMode} onChange={setNotationMode} options={[
-                    { value: 'dual', label: 'Dual (Jianpu + Staff)' },
+                    { value: 'dual', label: t('Dual (Jianpu + Staff)', '双谱（简谱 + 五线谱）') },
                     { value: 'jianpu', label: 'Jianpu 简谱' },
                     { value: 'staff', label: 'Staff 五线谱' },
                   ]} />
@@ -482,19 +474,22 @@ export default function App() {
 
                 {/* Sub-tools link */}
                 <div className="flex items-center gap-2">
+                  {currentSong.sourceUrl && <a href={currentSong.sourceUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-[#94A3A7] hover:text-[#B4F45A]">
+                    {t('Open URL', '打开网址')} <ExternalLink className="h-3 w-3" />
+                  </a>}
                   <button
                     onClick={() => setCurrentView('songbook')}
                     className="text-xs text-[#36B39B] hover:text-[#B4F45A] transition-colors"
                   >
-                    Switch Song...
+                    {t('Switch Song…', '切换乐曲…')}
                   </button>
                 </div>
               </div>
 
               {/* Main Center + Right Split Grid (Exact layout from user screenshot) */}
-              {currentSong.notes.length > 0 && <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 items-start">
+              {currentSong.notes.length > 0 && <div className="grid min-w-0 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_clamp(248px,29%,330px)] gap-2.5 lg:gap-3 items-start">
                 {/* Center: Sheet Music View (7 cols on lg, or 8 cols on xl) */}
-                <div className="lg:col-span-8 xl:col-span-8">
+                <div className="min-w-0 order-1">
                   <SheetMusicView
                     song={displaySong}
                     activeNoteIndex={activeNoteIndex}
@@ -502,11 +497,12 @@ export default function App() {
                     diziKey={diziKey}
                     fingeringSystem={fingeringSystem}
                     onSelectNote={handleSelectNote}
+                    followPlayback={isPlaying || activeNoteIndex > 0}
                   />
                 </div>
 
                 {/* Right: Live Fingering Panel (4 cols) */}
-                <div className="lg:col-span-4 xl:col-span-4 lg:sticky top-4">
+                <div className="min-w-0 order-2 lg:sticky lg:top-2 lg:max-h-[calc(100dvh-8.5rem)] lg:overflow-y-auto">
                   <LiveFingeringPanel
                     currentNote={currentNote}
                     nextNote={nextNote}
@@ -581,8 +577,8 @@ export default function App() {
         />
 
         <div className="md:hidden border-t border-[#16272C] bg-[#0B1014]">
-          <button className="w-full px-4 py-2 text-xs flex items-center justify-between text-[#94A3A7]" onClick={() => setMobileTimelineOpen(value => !value)}>
-            <span>Timeline · {formatTime(currentSeconds)} / {formatTime(totalDurationSeconds)}</span>
+          <button className="w-full px-3 py-1 text-[11px] flex items-center justify-between text-[#94A3A7]" onClick={() => setMobileTimelineOpen(value => !value)}>
+            <span>{t('Timeline', '时间轴')} · {formatTime(currentSeconds)} / {formatTime(totalDurationSeconds)}</span>
             <ChevronDown className={`w-4 h-4 transition-transform ${mobileTimelineOpen ? 'rotate-180' : ''}`} />
           </button>
           {mobileTimelineOpen && <BottomTimeline song={currentSong} activeNoteIndex={activeNoteIndex} onSeekToNote={handleSelectNote} onSeekToMeasure={handleSeekToMeasure} currentTimeSeconds={usesSourcePlayback ? currentSeconds : undefined} durationSeconds={usesSourcePlayback ? totalDurationSeconds : undefined} onSeekPercent={handleSeek} className="max-h-44 overflow-y-auto" />}
@@ -591,14 +587,14 @@ export default function App() {
 
       <nav aria-label="Mobile navigation" className="md:hidden fixed bottom-0 inset-x-0 z-40 border-t border-[#1A2E33] bg-[#091014]/95 backdrop-blur-lg grid grid-cols-5 pb-[env(safe-area-inset-bottom)]">
         {([
-          ['overview', Home, 'Home'], ['transcribe', Music, 'Transcribe'], ['songbook', BookOpen, 'Songs'], ['tuner', Activity, 'Tuner'],
+          ['overview', Home, t('Home', '首页')], ['transcribe', Music, t('Transcribe', '转谱')], ['songbook', BookOpen, t('Songs', '乐曲')], ['tuner', Activity, t('Tuner', '校音')],
         ] as const).map(([view, Icon, label]) => (
-          <button key={view} onClick={() => setCurrentView(view)} className={`min-h-14 flex flex-col items-center justify-center gap-1 text-[10px] ${currentView === view ? 'text-[#B4F45A]' : 'text-[#94A3A7]'}`}>
+          <button key={view} onClick={() => setCurrentView(view)} className={`min-h-12 flex flex-col items-center justify-center gap-0.5 text-[10px] ${currentView === view ? 'text-[#B4F45A]' : 'text-[#94A3A7]'}`}>
             <Icon className="w-4 h-4" />{label}
           </button>
         ))}
-        <button onClick={() => setMobileMenuOpen(true)} className="min-h-14 flex flex-col items-center justify-center gap-1 text-[10px] text-[#94A3A7]">
-          <Menu className="w-4 h-4" />More
+        <button onClick={() => setMobileMenuOpen(true)} className="min-h-12 flex flex-col items-center justify-center gap-0.5 text-[10px] text-[#94A3A7]">
+          <Menu className="w-4 h-4" />{t('More', '更多')}
         </button>
       </nav>
 

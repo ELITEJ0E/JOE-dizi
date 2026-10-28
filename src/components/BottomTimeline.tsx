@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Song, SongSection } from '../types/dizi';
 import { ZoomIn, ZoomOut, Maximize2, Minimize2 } from 'lucide-react';
+import { useLanguage } from '../i18n/LanguageContext';
 
 interface BottomTimelineProps {
   song: Song;
@@ -23,6 +24,7 @@ export const BottomTimeline: React.FC<BottomTimelineProps> = ({
   onSeekPercent,
   className = ''
 }) => {
+  const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<'timeline' | 'sections' | 'loop'>('timeline');
   const [zoomLevel, setZoomLevel] = useState<number>(100);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
@@ -57,45 +59,45 @@ export const BottomTimeline: React.FC<BottomTimelineProps> = ({
   const timeTicks = Array.from({ length: 5 }, (_, i) => formatTime((hasMediaTime ? durationSeconds : totalNotes * 60 / Math.max(song.bpm, 1)) * i / 4));
 
   return (
-    <footer className={`bg-[#0B1014] border-t border-[#16272C] p-4 select-none ${className}`}>
+    <footer className={`bg-[#0B1014] border-t border-[#16272C] px-3 py-1.5 select-none shrink-0 ${className}`}>
       {/* 1. Header Toolbar: Tabs on Left + Zoom/Fit on Right */}
-      <div className="flex items-center justify-between gap-2 overflow-x-auto pb-2.5 mb-2 border-b border-[#16272C]/70">
+      <div className="flex items-center justify-between gap-2 overflow-x-auto pb-1 mb-1 border-b border-[#16272C]/70">
         {/* Left Tabs */}
         <div className="flex items-center gap-1 shrink-0">
           <button
             onClick={() => setActiveTab('timeline')}
-            className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+            className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors ${
               activeTab === 'timeline'
                 ? 'bg-[#16272C] text-[#B4F45A] font-semibold border border-[#1F3D3D]'
                 : 'text-[#94A3A7] hover:text-[#F3F5F4]'
             }`}
           >
-            Timeline 时间轴
+            {t('Timeline', '时间轴')}
           </button>
           <button
             onClick={() => setActiveTab('sections')}
-            className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+            className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors ${
               activeTab === 'sections'
                 ? 'bg-[#16272C] text-[#B4F45A] font-semibold border border-[#1F3D3D]'
                 : 'text-[#94A3A7] hover:text-[#F3F5F4]'
             }`}
           >
-            Sections 曲式分段
+            {t('Sections', '曲式分段')}
           </button>
           <button
             onClick={() => setActiveTab('loop')}
-            className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+            className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors ${
               activeTab === 'loop'
                 ? 'bg-[#16272C] text-[#B4F45A] font-semibold border border-[#1F3D3D]'
                 : 'text-[#94A3A7] hover:text-[#F3F5F4]'
             }`}
           >
-            Loop 循环区间
+            {t('Loop', '循环')}
           </button>
         </div>
 
         {/* Right Zoom Controls */}
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           <div className="flex items-center gap-1.5 text-xs text-[#94A3A7]">
             <button
               onClick={() => setZoomLevel(Math.max(50, zoomLevel - 20))}
@@ -125,9 +127,9 @@ export const BottomTimeline: React.FC<BottomTimelineProps> = ({
 
           <button
             onClick={() => setZoomLevel(100)}
-            className="px-2 py-0.5 rounded bg-[#111D20] border border-[#1A2E33] text-[11px] text-[#94A3A7] hover:text-[#F3F5F4] transition-colors"
+            className="px-2 py-0.5 rounded bg-[#111D20] border border-[#1A2E33] text-[10px] text-[#94A3A7] hover:text-[#F3F5F4] transition-colors"
           >
-            Fit 适屏
+            {t('Fit', '适屏')}
           </button>
 
           <button
@@ -141,7 +143,7 @@ export const BottomTimeline: React.FC<BottomTimelineProps> = ({
       </div>
 
       {/* 2. Song Structure Section Blocks (Intro / Verse / Chorus) */}
-      <div className="grid grid-cols-12 gap-1 mb-2">
+      {song.sections.length > 0 && <div className="grid grid-cols-12 gap-1 mb-1">
         {song.sections.map((sec, idx) => {
           const colSpan = idx === 0 ? 'col-span-3' : idx === 1 ? 'col-span-5' : 'col-span-4';
           const isCurrentSection =
@@ -167,13 +169,13 @@ export const BottomTimeline: React.FC<BottomTimelineProps> = ({
             </button>
           );
         })}
-      </div>
+      </div>}
 
       {/* 3. Interactive Note Density & Scrubber Track */}
       <div
         ref={timelineRef}
         onClick={handleTimelineClick}
-        className="relative h-7 bg-[#111D20] border border-[#1A2E33] rounded-md px-3 flex items-center cursor-pointer group"
+        className="relative h-4 bg-[#111D20] border border-[#1A2E33] rounded-md px-2 flex items-center cursor-pointer group"
       >
         {/* Playhead Vertical Line */}
         <div
@@ -209,7 +211,7 @@ export const BottomTimeline: React.FC<BottomTimelineProps> = ({
       </div>
 
       {/* 4. Time Ticks Row */}
-      <div className="flex items-center justify-between mt-1 text-[10px] font-mono tabular-nums text-[#627376]">
+      <div className="flex items-center justify-between mt-0.5 text-[9px] font-mono tabular-nums text-[#627376]">
         {timeTicks.map((t, idx) => (
           <span key={idx}>{t}</span>
         ))}

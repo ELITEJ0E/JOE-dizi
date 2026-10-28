@@ -46,7 +46,7 @@ export const DiziFingeringDiagram: React.FC<DiziFingeringDiagramProps> = ({
 
   // Preserve the viewBox's exact aspect ratio at all screen sizes and at 100%
   // browser zoom. A fixed width/height used to stretch the flute and clip it.
-  const maxHeight = size === 'sm' ? 'min(36dvh, 320px)' : size === 'lg' ? 'min(54dvh, 460px)' : 'min(48dvh, 420px)';
+  const maxHeight = size === 'sm' ? 'clamp(116px, 22dvh, 200px)' : size === 'lg' ? 'clamp(240px, 42dvh, 390px)' : 'clamp(170px, 30dvh, 284px)';
 
   // Hole positions from top (y coordinates)
   // Hole 6 (top) down to Hole 1 (bottom)
@@ -60,13 +60,13 @@ export const DiziFingeringDiagram: React.FC<DiziFingeringDiagramProps> = ({
   ];
 
   return (
-    <div className={`relative flex flex-col items-center select-none ${className}`}>
+    <div className={`relative flex w-full min-w-0 flex-col items-center select-none ${className}`} style={{ height: maxHeight }}>
       <svg
         viewBox="0 0 70 460"
+        preserveAspectRatio="xMidYMid meet"
         role="img"
         aria-label="Six-hole bamboo dizi fingering diagram, all holes visible"
-        className="block h-auto w-auto max-w-full overflow-visible filter drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)]"
-        style={{ height: maxHeight, aspectRatio: '70 / 460', objectFit: 'contain' }}
+        className="block h-full w-full max-w-full overflow-hidden filter drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)]"
       >
         <defs>
           {/* Authentic mottled bamboo texture gradient */}

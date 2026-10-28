@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Song, DiziNote, DiziKey, FingeringSystem } from '../types/dizi';
 import { DIZI_TECHNIQUES } from '../music/diziTheory';
+import { useLanguage } from '../i18n/LanguageContext';
 
 interface SheetMusicViewProps {
   song: Song;
@@ -9,6 +10,7 @@ interface SheetMusicViewProps {
   diziKey: DiziKey;
   fingeringSystem: FingeringSystem;
   onSelectNote: (index: number) => void;
+  followPlayback?: boolean;
   className?: string;
 }
 
@@ -19,29 +21,83 @@ export const SheetMusicView: React.FC<SheetMusicViewProps> = ({
   diziKey,
   fingeringSystem,
   onSelectNote,
+  followPlayback = false,
   className = ''
 }) => {
-  // Group notes by measures for structured musical layout
-  const measuresMap = new Map<number, { notes: Array<{ note: DiziNote; originalIdx: number }>; chord?: string }>();
+  const { t } = useLanguage();
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const [sheetWidth, setSheetWidth] = useState(0);
 
-  song.notes.forEach((note, idx) => {
-    if (!measuresMap.has(note.measureNumber)) {
-      measuresMap.set(note.measureNumber, { notes: [], chord: note.chord });
+  // Real container measurements matter: four dense measures at 100% zoom
+  // would otherwise overlap inside the narrower score column.
+  useEffect(() => {
+    const el = sheetRef.current;
+    if (!el) return;
+    const resize = new ResizeObserver(entries => setSheetWidth(Math.round(entries[0].contentRect.width)));
+    resize.observe(el);
+    return () => resize.disconnect();
+  }, []);
+
+  const measures = useMemo(() => {
+    const map = new Map<number, { notes: Array<{ note: DiziNote; originalIdx: number }>; chord?: string }>();
+    song.notes.forEach((note, idx) => {
+      if (!map.has(note.measureNumber)) map.set(note.measureNumber, { notes: [], chord: note.chord });
+      const measure = map.get(note.measureNumber)!;
+      measure.notes.push({ note, originalIdx: idx });
+      if (!measure.chord && note.chord) measure.chord = note.chord;
+    });
+    return Array.from(map.entries()).sort((a, b) => a[0] - b[0]);
+  }, [song.notes]);
+
+  const measureMinWidth = (notes: number) => Math.max(140, notes * 27 + 20);
+  const measureRows = useMemo(() => {
+    const rows: Array<typeof measures> = [];
+    const available = Math.max(240, (sheetWidth || 750) - (sheetWidth >= 640 ? 42 : 28));
+    let row: typeof measures = [];
+    let used = 0;
+    for (const measure of measures) {
+      const width = measureMinWidth(measure[1].notes.length);
+      if (row.length && (row.length === 4 || used + width > available)) {
+        rows.push(row);
+        row = [];
+        used = 0;
+      }
+      row.push(measure);
+      used += width;
     }
-    const m = measuresMap.get(note.measureNumber)!;
-    m.notes.push({ note, originalIdx: idx });
-    if (!m.chord && note.chord) {
-      m.chord = note.chord;
-    }
-  });
+    if (row.length) rows.push(row);
+    return rows;
+  }, [measures, sheetWidth]);
 
-  const measures = Array.from(measuresMap.entries()).sort((a, b) => a[0] - b[0]);
+  // Follow by notation row, not by each 30ms ornament: the highlighted note
+  // stays in the viewport without fighting the user's vertical layout.
+  useEffect(() => {
+    if (!followPlayback || activeNoteIndex < 0) return;
+    const frame = requestAnimationFrame(() => {
+      const note = sheetRef.current?.querySelector<HTMLElement>(`[data-score-note="${activeNoteIndex}"]`);
+      const row = note?.closest<HTMLElement>('[data-score-row]');
+      const viewport = sheetRef.current?.closest<HTMLElement>('[data-score-scroll-viewport]');
+      if (!note || !row || !viewport) return;
 
-  // We group measures into rows of 4 measures each, matching standard Chinese sheet music printing
-  const measureRows: Array<typeof measures> = [];
-  for (let i = 0; i < measures.length; i += 4) {
-    measureRows.push(measures.slice(i, i + 4));
-  }
+      const viewportRect = viewport.getBoundingClientRect();
+      const rowRect = row.getBoundingClientRect();
+      const safeTop = viewportRect.top + Math.min(90, viewportRect.height * 0.18);
+      const safeBottom = viewportRect.bottom - Math.min(90, viewportRect.height * 0.18);
+      if (rowRect.top < safeTop || rowRect.bottom > safeBottom) {
+        const offset = rowRect.top - (viewportRect.top + Math.min(68, viewportRect.height * 0.14));
+        viewport.scrollBy({ top: offset, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+      }
+
+      const scroller = note.closest<HTMLElement>('[data-score-row-scroll]');
+      if (!scroller) return;
+      const noteRect = note.getBoundingClientRect();
+      const clip = scroller.getBoundingClientRect();
+      if (noteRect.left < clip.left + 16 || noteRect.right > clip.right - 16) {
+        scroller.scrollBy({ left: noteRect.left - clip.left - clip.width * 0.35, behavior: 'auto' });
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [activeNoteIndex, followPlayback, measureRows]);
 
   // Staff positions are DIATONIC, not semitone-proportional. The previous
   // implementation clamped most high dizi notes to the same y-coordinate.
@@ -52,15 +108,15 @@ export const SheetMusicView: React.FC<SheetMusicViewProps> = ({
   };
   const highestStep = Math.max(10, ...song.notes.map(note => diatonicStep(note.pitch, note.midi)));
   const lowestStep = Math.min(2, ...song.notes.map(note => diatonicStep(note.pitch, note.midi)));
-  const extraTop = Math.max(0, (highestStep - 10) * 5);
-  const extraBottom = Math.max(0, (2 - lowestStep) * 5);
-  const staffHeight = 76 + extraTop + extraBottom;
-  const topStaffLine = 16 + extraTop;
-  const bottomStaffLine = topStaffLine + 40;
-  const getStaffY = (pitch: string, midi: number) => topStaffLine + (10 - diatonicStep(pitch, midi)) * 5;
+  const extraTop = Math.max(0, (highestStep - 10) * 4);
+  const extraBottom = Math.max(0, (2 - lowestStep) * 4);
+  const staffHeight = 60 + extraTop + extraBottom;
+  const topStaffLine = 13 + extraTop;
+  const bottomStaffLine = topStaffLine + 32;
+  const getStaffY = (pitch: string, midi: number) => topStaffLine + (10 - diatonicStep(pitch, midi)) * 4;
 
   return (
-    <div className={`relative xuan-paper rounded-xl shadow-2xl p-3 sm:p-8 text-[#1D2928] overflow-hidden select-none border border-[#E5DFD0] ${className}`}>
+    <div ref={sheetRef} className={`relative min-w-0 xuan-paper rounded-xl shadow-2xl p-3 sm:p-5 text-[#1D2928] overflow-hidden select-none border border-[#E5DFD0] ${className}`}>
       {/* Decorative Ink Wash Mountain Watermark & Calligraphy header */}
       <div className="absolute top-0 right-0 w-80 sm:w-96 h-40 pointer-events-none opacity-45 overflow-hidden hidden sm:block">
         {/* Artistic SVG Ink Mountain Range & Moon */}
@@ -89,7 +145,7 @@ export const SheetMusicView: React.FC<SheetMusicViewProps> = ({
       </div>
 
       {/* Traditional Calligraphy Title Stamp & Seal */}
-      <div className="absolute top-6 right-6 hidden sm:flex items-start gap-3 pointer-events-none">
+      <div className="absolute top-4 right-4 hidden lg:flex items-start gap-2 pointer-events-none">
         {/* Vertical Chinese Calligraphy Title */}
         <div className="text-right">
           <div className="font-calligraphy text-2xl font-bold tracking-widest text-[#242A28] leading-tight writing-vertical">
@@ -111,28 +167,30 @@ export const SheetMusicView: React.FC<SheetMusicViewProps> = ({
       </div>
 
       {/* Sheet Music Header Metadata */}
-      <div className="mb-6 relative z-10">
-        <h2 className="text-xl sm:text-3xl font-serif font-bold tracking-tight text-[#111A19]">
-          {song.sections[0]?.name || song.titleEn || 'Transcription'}
+      <div className="mb-4 relative z-10 pr-8 lg:pr-20">
+        <h2 className="text-xl sm:text-2xl font-serif font-bold tracking-tight text-[#111A19] break-words">
+          {song.sections[0]?.name || song.titleEn || t('Transcription', '转谱')}
         </h2>
-        <div className="flex flex-wrap items-center gap-2 sm:gap-5 mt-2 text-sm font-serif font-medium text-[#3E4947]">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-1.5 text-xs sm:text-sm font-serif font-medium text-[#3E4947]">
           <span className="font-bold">{song.musicalKey}</span>
           <span>{song.timeSignature}</span>
           <span className="flex items-center gap-1 font-mono text-xs">
             <span className="text-base font-serif">♩</span> = {song.bpm}
           </span>
           <span className="text-xs text-[#6A7876]">
-            {diziKey} 调笛 · {fingeringSystem === 'tongyin_5' ? '筒音作5' : fingeringSystem === 'tongyin_2' ? '筒音作2' : '筒音作1'}
+            {diziKey} {t('dizi', '调笛')} · {fingeringSystem === 'tongyin_5' ? '筒音作5' : fingeringSystem === 'tongyin_2' ? '筒音作2' : '筒音作1'}
           </span>
         </div>
       </div>
 
       {/* Measures and Notation Rows */}
-      <div className="space-y-10 relative z-10">
+      <div className="space-y-5 relative z-10">
         {measureRows.map((rowMeasures, rowIdx) => (
-          <div key={rowIdx} className="border-b border-[#DCD5C5] pb-6 last:border-b-0">
+          <div key={`${rowMeasures[0][0]}-${rowIdx}`} data-score-row className="border-b border-[#DCD5C5] pb-4 last:border-b-0">
+            <div data-score-row-scroll className="min-w-0 overflow-x-auto overflow-y-visible">
+            <div style={{ minWidth: rowMeasures.reduce((sum, measure) => sum + measureMinWidth(measure[1].notes.length), 0) }}>
             {/* 1. Chords Row (aligned above measures) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2 mb-2 px-1">
+            <div className="grid mb-2 px-1" style={{ gridTemplateColumns: rowMeasures.map(measure => `${measureMinWidth(measure[1].notes.length)}fr`).join(' ') }}>
               {rowMeasures.map(([mNum, mData]) => (
                 <div key={mNum} className="text-xs font-mono font-bold text-[#4B6960] tracking-wide">
                   {mData.chord ? `${mData.chord}` : ''}
@@ -141,11 +199,11 @@ export const SheetMusicView: React.FC<SheetMusicViewProps> = ({
             </div>
 
             {/* 2. Main Notation Row (Jianpu + Staff) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2 border-l border-[#8E8675] border-r">
+            <div className="grid border-l border-[#8E8675] border-r" style={{ gridTemplateColumns: rowMeasures.map(measure => `${measureMinWidth(measure[1].notes.length)}fr`).join(' ') }}>
               {rowMeasures.map(([mNum, mData], colIdx) => (
                 <div
                   key={mNum}
-                  className={`relative flex flex-col justify-between px-2 py-1 ${
+                  className={`relative flex min-w-0 flex-col justify-between px-1.5 py-1 ${
                     colIdx < rowMeasures.length - 1 ? 'border-r border-[#8E8675]' : ''
                   }`}
                 >
@@ -156,7 +214,7 @@ export const SheetMusicView: React.FC<SheetMusicViewProps> = ({
 
                   {/* A. Jianpu Notation Section */}
                   {(notationMode === 'jianpu' || notationMode === 'dual') && (
-                    <div className="flex items-center justify-around py-3">
+                    <div className="flex items-center justify-around py-2">
                       {mData.notes.map(({ note, originalIdx }) => {
                         const isActive = originalIdx === activeNoteIndex;
                         const tech = note.technique ? DIZI_TECHNIQUES[note.technique] : null;
@@ -164,8 +222,9 @@ export const SheetMusicView: React.FC<SheetMusicViewProps> = ({
                         return (
                           <div
                             key={note.id}
+                            data-score-note={originalIdx}
                             onClick={() => onSelectNote(originalIdx)}
-                            className={`relative flex flex-col items-center justify-center cursor-pointer px-1.5 py-1 rounded-md transition-all ${
+                            className={`relative flex flex-col items-center justify-center cursor-pointer px-1 py-1 rounded-md transition-colors shrink-0 ${
                               isActive
                                 ? 'bg-[#B4F45A]/35 ring-1 ring-[#36B39B]'
                                 : 'hover:bg-black/5'
@@ -207,7 +266,7 @@ export const SheetMusicView: React.FC<SheetMusicViewProps> = ({
                                 <div className="absolute -top-2 left-1/2 w-8 h-2 border-t-2 border-[#3E4947] rounded-t-full pointer-events-none" />
                               )}
 
-                              <span className="text-xl sm:text-2xl font-serif font-bold text-[#1D2928] leading-none">
+                              <span className="text-xl font-serif font-bold text-[#1D2928] leading-none">
                                 {note.jianpu}
                               </span>
                               {note.confidence !== undefined && note.confidence < 0.35 && (
@@ -263,10 +322,10 @@ export const SheetMusicView: React.FC<SheetMusicViewProps> = ({
 
                   {/* B. Western 5-Line Staff Notation Section */}
                   {(notationMode === 'staff' || notationMode === 'dual') && (
-                    <div className="relative w-full mt-2" style={{ height: staffHeight }}>
+                    <div className="relative w-full mt-1" style={{ height: staffHeight }}>
                       <svg className="w-full h-full overflow-visible" role="img" aria-label="Treble staff with pitch-accurate notes and ledger lines">
                         {/* 5 Staff lines */}
-                        {[0, 10, 20, 30, 40].map((offset, lIdx) => (
+                        {[0, 8, 16, 24, 32].map((offset, lIdx) => (
                           <line
                             key={lIdx}
                             x1="0"
@@ -283,7 +342,7 @@ export const SheetMusicView: React.FC<SheetMusicViewProps> = ({
                           <text
                             x="4"
                             y={topStaffLine + 33}
-                            fontSize="32"
+                            fontSize="26"
                             fontFamily="serif"
                             fill="#1D2928"
                             className="select-none"
@@ -299,13 +358,14 @@ export const SheetMusicView: React.FC<SheetMusicViewProps> = ({
                           const xPercent = ((nIdx + 0.6) / noteCount) * 100;
                           const noteY = getStaffY(note.pitch, note.midi);
                           const ledgerYs: number[] = [];
-                          for (let y = topStaffLine - 10; y >= noteY - 1; y -= 10) ledgerYs.push(y);
-                          for (let y = bottomStaffLine + 10; y <= noteY + 1; y += 10) ledgerYs.push(y);
-                          const stemDown = noteY < topStaffLine + 10;
+                          for (let y = topStaffLine - 8; y >= noteY - 1; y -= 8) ledgerYs.push(y);
+                          for (let y = bottomStaffLine + 8; y <= noteY + 1; y += 8) ledgerYs.push(y);
+                          const stemDown = noteY < topStaffLine + 8;
 
                           return (
                             <g
                               key={note.id}
+                              data-score-note={originalIdx}
                               className="cursor-pointer"
                               onClick={() => onSelectNote(originalIdx)}
                             >
@@ -339,7 +399,7 @@ export const SheetMusicView: React.FC<SheetMusicViewProps> = ({
                                 x1={`${xPercent + (stemDown ? -4 : 4)}%`}
                                 y1={noteY}
                                 x2={`${xPercent + (stemDown ? -4 : 4)}%`}
-                                y2={noteY + (stemDown ? 24 : -24)}
+                                y2={noteY + (stemDown ? 20 : -20)}
                                 stroke={isActive ? '#36B39B' : '#1D2928'}
                                 strokeWidth="1.2"
                               />
@@ -351,6 +411,8 @@ export const SheetMusicView: React.FC<SheetMusicViewProps> = ({
                   )}
                 </div>
               ))}
+            </div>
+            </div>
             </div>
           </div>
         ))}

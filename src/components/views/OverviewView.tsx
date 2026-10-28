@@ -1,5 +1,6 @@
 import React from 'react';
 import { ViewMode, DiziKey } from '../../types/dizi';
+import { useLanguage } from '../../i18n/LanguageContext';
 import {
   Music4,
   LayoutGrid,
@@ -20,6 +21,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   onNavigate,
   diziKey
 }) => {
+  const { t } = useLanguage();
   return (
     <div className="space-y-8 select-none">
       {/* 1. Hero Banner */}
@@ -27,16 +29,15 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
         <div className="relative z-10 max-w-2xl">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#122527] border border-[#1F3D3D] text-xs text-[#B4F45A] font-mono mb-4">
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Intelligent Chinese Dizi Workstation</span>
+            <span>{t('Intelligent Chinese Dizi Workstation', '智能中国笛工作台')}</span>
           </div>
 
           <h1 className="text-3xl sm:text-4xl font-serif font-bold text-[#F3F5F4] tracking-tight leading-tight">
-            JOE Dizi Studio — 智能笛子学习与转谱平台
+            JOE Dizi Studio — {t('Learn, transcribe and play', '智能笛子学习与转谱平台')}
           </h1>
 
           <p className="text-sm text-[#94A3A7] mt-3 leading-relaxed">
-            Inspired by the JOE-Music guitar workstation, engineered specifically for the monophonic Chinese transverse bamboo flute.
-            Transcribe audio into Jianpu (简谱), master traditional 6-hole fingerings, practice at variable speeds, and tune your instrument with acoustic precision.
+            {t('Inspired by the JOE-Music workstation, built for the Chinese transverse bamboo flute. Transcribe recordings into Jianpu and staff notation, master six-hole fingerings, practise at different speeds, and tune your instrument.', '基于 JOE-Music 工作台专为中国竹笛打造。将录音转为简谱及五线谱，掌握六孔指法、变速练习与精准调音。')}
           </p>
 
           <div className="flex flex-wrap items-center gap-3 mt-6">
@@ -45,7 +46,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#B4F45A] text-[#0B1014] text-xs font-bold hover:bg-[#c3f77a] transition-all shadow-md"
             >
               <Music4 className="w-4 h-4" />
-              <span>Open Sheet Music Studio</span>
+              <span>{t('Open Sheet Music Studio', '打开乐谱工作台')}</span>
               <ArrowRight className="w-3.5 h-3.5 ml-1" />
             </button>
 
@@ -54,7 +55,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#16272C] hover:bg-[#1C333A] text-[#F3F5F4] text-xs font-semibold border border-[#1F3D3D] transition-colors"
             >
               <LayoutGrid className="w-4 h-4 text-[#36B39B]" />
-              <span>Explore 6-Hole Fingerings</span>
+              <span>{t('Explore 6-Hole Fingerings', '探索六孔指法')}</span>
             </button>
 
             <button
@@ -62,7 +63,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#16272C] hover:bg-[#1C333A] text-[#F3F5F4] text-xs font-semibold border border-[#1F3D3D] transition-colors"
             >
               <Activity className="w-4 h-4 text-[#B4F45A]" />
-              <span>Chromatic Tuner</span>
+              <span>{t('Chromatic Tuner', '十二平均律调音器')}</span>
             </button>
           </div>
         </div>
@@ -85,10 +86,10 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             <Music4 className="w-5 h-5" />
           </div>
           <h3 className="text-sm font-semibold text-[#F3F5F4]">
-            Dizi Transcriber
+            {t('Dizi Transcriber', '笛子转谱')}
           </h3>
           <p className="text-xs text-[#94A3A7] mt-1 leading-relaxed">
-            Upload audio files, hum via microphone, or sync YouTube/Suno tracks to generate Jianpu & staff notation.
+            {t('Upload audio, record with your microphone, or paste a URL to generate Jianpu and staff notation.', '上传音频、麦克风录制或粘贴网址，生成简谱和五线谱。')}
           </p>
         </div>
 
@@ -100,10 +101,10 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             <LayoutGrid className="w-5 h-5" />
           </div>
           <h3 className="text-sm font-semibold text-[#F3F5F4]">
-            Fingering Library
+            {t('Fingering Library', '指法大全')}
           </h3>
           <p className="text-xs text-[#94A3A7] mt-1 leading-relaxed">
-            Comprehensive database of 6-hole fingerings across C, D, E, F, G, A, Bb keys and 5 traditional systems.
+            {t('Six-hole fingerings in C, D, E, F, G, A, Bb and five traditional systems.', '提供 C、D、E、F、G、A、降 B 调及五种传统体系的六孔指法。')}
           </p>
         </div>
 
@@ -115,10 +116,10 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             <Target className="w-5 h-5" />
           </div>
           <h3 className="text-sm font-semibold text-[#F3F5F4]">
-            Practice Studio
+            {t('Practice Studio', '练习工作台')}
           </h3>
           <p className="text-xs text-[#94A3A7] mt-1 leading-relaxed">
-            Metronome with traditional Chinese clapper click, A-B phrase looping, and progressive speed training.
+            {t('Traditional metronome, A–B phrase looping and gradual speed training.', '传统节拍器、A–B 乐句循环与渐进式速度训练。')}
           </p>
         </div>
 
@@ -130,10 +131,10 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             <Activity className="w-5 h-5" />
           </div>
           <h3 className="text-sm font-semibold text-[#F3F5F4]">
-            Acoustic Tuner
+            {t('Acoustic Tuner', '声学调音器')}
           </h3>
           <p className="text-xs text-[#94A3A7] mt-1 leading-relaxed">
-            Real-time live microphone chromatic pitch detection with cents needle dial and embouchure roll feedback.
+            {t('Live microphone pitch detection with a cents dial and embouchure feedback.', '通过麦克风实时检测音高，显示音分偏差与吹奏反馈。')}
           </p>
         </div>
       </div>

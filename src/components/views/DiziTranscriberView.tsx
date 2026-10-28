@@ -6,8 +6,10 @@ import { midiToPitchName, findFingering, DIZI_KEYS_SPEC, getJianpuForMidi, pitch
 import { diziAudio } from '../../audio/diziSynth';
 import { getShareMetadata, parseMediaSource } from '../../utils/mediaSources';
 import { fetchSunoAudio } from '../../utils/sunoImport';
+import { fetchYouTubeAudio } from '../../utils/youtubeImport';
 import { saveAudioFile } from '../../utils/audioLibrary';
 import { StudioSelect } from '../StudioSelect';
+import { useLanguage } from '../../i18n/LanguageContext';
 import {
   Upload,
   Mic,
@@ -40,6 +42,7 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
   onDiziKeyChange,
   fingeringSystem
 }) => {
+  const { t } = useLanguage();
   const [transcribeMethod, setTranscribeMethod] = useState<'upload' | 'mic' | 'url'>('upload');
   const [isRecording, setIsRecording] = useState(false);
   const [recordedPitches, setRecordedPitches] = useState<string[]>([]);
@@ -57,21 +60,21 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
   const transcribeFile = async (file: File, linkedSong?: Song) => {
     setIsProcessing(true);
     setStatusError(false);
-    setStatusMessage(`Decoding audio file "${file.name}"...`);
+    setStatusMessage(t(`Decoding audio file "${file.name}"...`, `正在解码音频「${file.name}」…`));
     let ctx: AudioContext | null = null;
     try {
       const arrayBuffer = await file.arrayBuffer();
       const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       ctx = new AudioCtx();
       const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
-      setStatusMessage(`Tracking dizi melody within the ${diziKey}-key instrument range…`);
+      setStatusMessage(t(`Tracking dizi melody within the ${diziKey}-key range…`, `正在追踪 ${diziKey} 调笛的旋律…`));
       const { rangeStartMidi, rangeEndMidi } = DIZI_KEYS_SPEC[diziKey];
       const { notes: segments, estimatedBpm } = await analyzeMelodyInBackground(audioBuffer, percent => {
-        setStatusMessage(`Analyzing melody in the background… ${percent}%`);
+        setStatusMessage(t(`Analyzing melody… ${percent}%`, `正在分析旋律… ${percent}%`));
       }, { minMidi: rangeStartMidi, maxMidi: rangeEndMidi });
       if (segments.length === 0) {
         setStatusError(true);
-        setStatusMessage('No clear single-note melody detected. Try a solo dizi or isolated melodic stem.');
+        setStatusMessage(t('No clear melody detected. Try a solo dizi or isolated melodic stem.', '未检测到清晰旋律，请尝试独奏笛音或分离的笛子音轨。'));
         return;
       }
 
@@ -101,7 +104,7 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
         titleEn: attachesToLink ? baseSong.titleEn : file.name.replace(/\.[^/.]+$/, ''),
         titleZh: attachesToLink ? baseSong.titleZh : '新转谱乐曲',
         source: attachesToLink ? baseSong.source : 'upload',
-        sourceDetails: `${attachesToLink ? baseSong.source === 'youtube' ? 'YouTube' : 'Suno' : 'Audio File'} • Audio analyzed`,
+        sourceDetails: `${attachesToLink ? 'URL' : 'Audio File'} • Audio analyzed`,
         audioUrl: URL.createObjectURL(file),
         audioDuration: audioBuffer.duration,
         bpm,
@@ -112,12 +115,12 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
       const savedOffline = await saveAudioFile(newSong.id, file);
       onLoadSong(newSong);
       const uncertainCount = notes.filter(note => note.confidence !== undefined && note.confidence < 0.35).length;
-      setStatusMessage(`Found ${notes.length} candidate melody events${estimatedBpm ? ` at ≈${estimatedBpm} BPM` : ''}, including fast ornaments. ${uncertainCount} ambiguous pitches are marked '?' for review. ${savedOffline ? 'Audio and score saved on this device.' : 'Score saved; browser storage did not accept the audio file.'} Full mixes may require an isolated dizi stem.`);
+      setStatusMessage(t(`Found ${notes.length} candidate notes${estimatedBpm ? ` at ≈${estimatedBpm} BPM` : ''}. ${uncertainCount} uncertain pitches need review. ${savedOffline ? 'Audio and score saved locally.' : 'Score saved; audio could not be stored offline.'}`, `找到 ${notes.length} 个候选音符${estimatedBpm ? `，约 ${estimatedBpm} BPM` : ''}。有 ${uncertainCount} 个音高需要核对。${savedOffline ? '音频与乐谱已保存在本机。' : '乐谱已保存，音频离线存储失败。'}`));
       setStatusError(false);
     } catch (err) {
       console.error('Audio transcription failed', err);
       setStatusError(true);
-      setStatusMessage('Unable to decode this audio stream. For Suno, download the actual MP3/WAV from your Suno account and attach it; encrypted or protected playback streams cannot be decoded here.');
+      setStatusMessage(t('Unable to decode the URL audio. Please upload an MP3/WAV file if the source stream cannot be decoded.', '无法解码网址音频。如果在线音频不可用，请上传 MP3/WAV 文件。'));
     } finally {
       if (ctx) await ctx.close().catch(() => {});
       setIsProcessing(false);
@@ -136,18 +139,18 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
     const source = parseMediaSource(youtubeUrl);
     if (!source) {
       setStatusError(true);
-      setStatusMessage('Enter a valid YouTube video URL or Suno /song/ link.');
+      setStatusMessage(t('Enter a supported song or video URL.', '请输入支持的歌曲或视频网址。'));
       return;
     }
     setIsProcessing(true);
     setStatusError(false);
-    setStatusMessage(`Importing ${source.kind === 'youtube' ? 'YouTube video' : 'Suno song'}…`);
+    setStatusMessage(t('Importing URL…', '正在导入网址…'));
     try {
       const metadata = await getShareMetadata(source);
       const newSong: Song = {
         ...currentSong,
         id: `${source.kind}_${source.id}`,
-        titleEn: metadata.title || (source.kind === 'youtube' ? `YouTube video ${source.id}` : `Suno track ${source.id.slice(0, 8)}`),
+        titleEn: metadata.title || `URL track ${source.id.slice(0, 8)}`,
         titleZh: '',
         artistEn: metadata.artist || '',
         artistZh: '',
@@ -155,7 +158,7 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
         sourceUrl: source.url,
         youtubeVideoId: source.kind === 'youtube' ? source.id : undefined,
         sunoClipId: source.kind === 'suno' ? source.id : undefined,
-        sourceDetails: source.kind === 'youtube' ? 'YouTube • Embedded playback' : 'Suno • Link imported',
+        sourceDetails: 'URL • Importing audio',
         imageUrl: source.kind === 'youtube' ? metadata.thumbnail || `https://i.ytimg.com/vi/${source.id}/hqdefault.jpg` : undefined,
         audioUrl: undefined,
         audioDuration: undefined,
@@ -164,25 +167,26 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
         totalMeasures: 0,
       };
 
-      if (source.kind === 'suno') {
-        setStatusMessage('Suno link recognized. Retrieving playable audio for automatic transcription…');
-        const audio = await fetchSunoAudio(source.id, newSong.titleEn);
-        if (audio) {
-          await transcribeFile(audio, newSong);
-          return;
-        }
-        onLoadSong(newSong);
-        setStatusError(true);
-        setStatusMessage('Suno link saved, but this track has no browser-accessible, downloadable audio. Open your Suno Library → Download, then attach the MP3/WAV here. A share page or protected stream cannot be transcribed as audio.');
-      } else {
-        onLoadSong(newSong);
-        setStatusMessage('YouTube video loaded and link saved locally. Attach an authorized matching audio file to generate dizi notes; the YouTube iframe cannot provide raw audio samples.');
+      // Keep the source URL even when the remote extractor is unavailable.
+      onLoadSong(newSong);
+      setStatusMessage(t('Fetching the audio stream and preparing transcription…', '正在获取音频并准备转谱…'));
+      const resolved = source.kind === 'suno'
+        ? { file: await fetchSunoAudio(source.id, newSong.titleEn), title: undefined, artist: undefined }
+        : await fetchYouTubeAudio(source.url, message => setStatusMessage(t(message, '正在提取音频…')));
+      if (resolved?.file) {
+        await transcribeFile(resolved.file, {
+          ...newSong,
+          titleEn: resolved.title && resolved.title !== 'Imported URL Audio' ? resolved.title : newSong.titleEn,
+          artistEn: resolved.artist || newSong.artistEn,
+        });
+        return;
       }
-      setTranscribeMethod('upload');
+      setStatusError(true);
+      setStatusMessage(t('URL saved. The extractor could not retrieve this recording. Try again or attach an authorized MP3/WAV file.', '网址已保存，但无法提取该录音。请重试或上传获授权的 MP3/WAV 文件。'));
     } catch (error) {
       console.error('Song import failed', error);
       setStatusError(true);
-      setStatusMessage('Could not import this link. Check your connection or attach an audio file directly.');
+      setStatusMessage(t('Could not import this link. Check your connection or attach audio directly.', '导入链接失败，请检查网络或直接上传音频。'));
     } finally {
       setIsProcessing(false);
     }
@@ -193,10 +197,10 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
     if (isRecording) {
       pitchDetector.stopMicrophone();
       setIsRecording(false);
-      setStatusMessage(`Recording finished with ${recordedPitches.length} detected notes.`);
+      setStatusMessage(t(`Recording finished with ${recordedPitches.length} notes.`, `录音结束，检测到 ${recordedPitches.length} 个音符。`));
     } else {
       setRecordedPitches([]);
-      setStatusMessage('Listening to your whistle or dizi... Sing or play a phrase.');
+      setStatusMessage(t('Listening for dizi notes… Sing or play a phrase.', '正在监听笛音…请演奏一段旋律。'));
       const ok = await pitchDetector.startMicrophone((res) => {
         if (res && res.clarity > 0.8) {
           setRecordedPitches((prev) => {
@@ -242,7 +246,7 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
       totalMeasures: measure + 1
     });
     setRecordedPitches([]);
-    setStatusMessage(`Appended ${addedNotes.length} notes to the sheet music!`);
+    setStatusMessage(t(`Added ${addedNotes.length} notes to the score.`, `已将 ${addedNotes.length} 个音符加入乐谱。`));
   };
 
   // Add single manual note in editor
@@ -274,7 +278,7 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
   const handleSavePitch = (noteId: string) => {
     if (!/^[A-G](?:#|b)?-?\d$/.test(pitchDraft)) {
       setStatusError(true);
-      setStatusMessage('Enter a valid sounding note, such as D5, F#5, or Bb4.');
+      setStatusMessage(t('Enter a valid sounding note, such as D5, F#5, or Bb4.', '请输入有效音名，例如 D5、F#5 或 Bb4。'));
       return;
     }
     const midi = pitchNameToMidi(pitchDraft);
@@ -286,7 +290,7 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
     });
     setEditingNoteId(null);
     setStatusError(false);
-    setStatusMessage(`Corrected sounding pitch to ${midiToPitchName(midi, diziKey)}.`);
+    setStatusMessage(t(`Corrected sounding pitch to ${midiToPitchName(midi, diziKey)}.`, `已将音高更正为 ${midiToPitchName(midi, diziKey)}。`));
   };
 
   // Delete note from editor
@@ -303,12 +307,10 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#1A2E33]">
         <div>
           <h2 className="text-xl sm:text-2xl font-serif font-bold text-[#F3F5F4] flex items-center gap-2">
-            <span>Dizi Transcriber</span>
-            <span className="text-sm font-calligraphy text-[#36B39B]">智能转谱与简谱工作台</span>
+            <span>{t('Dizi Transcriber', '笛子转谱')}</span>
           </h2>
           <p className="text-xs text-[#94A3A7] mt-1 max-w-2xl">
-            Import songs from audio files, hum/whistle via live microphone, or sync YouTube/Suno tracks.
-            Melodies are decoded and mapped onto physical 6-hole Dizi fingerings and Jianpu notation.
+            {t('Import audio files, record a melody or paste a URL. Detected notes follow the six-hole dizi fingering chart and Jianpu score.', '导入音频、录制旋律或粘贴网址。识别的音符将同步显示在六孔笛指法图和简谱中。')}
           </p>
         </div>
 
@@ -323,7 +325,7 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
             }`}
           >
             <Upload className="w-3.5 h-3.5" />
-            <span>Audio File</span>
+            <span>{t('Audio File', '音频文件')}</span>
           </button>
           <button
             onClick={() => setTranscribeMethod('mic')}
@@ -334,7 +336,7 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
             }`}
           >
             <Mic className="w-3.5 h-3.5" />
-            <span>Live Mic</span>
+            <span>{t('Live Mic', '实时麦克风')}</span>
           </button>
           <button
             onClick={() => setTranscribeMethod('url')}
@@ -345,7 +347,7 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
             }`}
           >
             <LinkIcon className="w-3.5 h-3.5" />
-            <span>YouTube / Suno</span>
+            <span>URL</span>
           </button>
         </div>
       </div>
@@ -354,8 +356,8 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
       <div className="bg-[#111D20] border border-[#1A2E33] rounded-xl p-3 sm:p-5">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#264049] bg-[#0E171A] px-3 py-2.5">
           <div className="min-w-0">
-            <p className="text-xs font-semibold text-[#F3F5F4]">Dizi note range / 笛调</p>
-            <p className="mt-0.5 text-[11px] text-[#94A3A7]">Choose the flute in the recording before transcribing. {DIZI_KEYS_SPEC[diziKey].tongyinPitch}–{midiToPitchName(DIZI_KEYS_SPEC[diziKey].rangeEndMidi, diziKey)} will be tracked; backing instruments may still need isolation.</p>
+            <p className="text-xs font-semibold text-[#F3F5F4]">{t('Dizi note range', '笛调音域')}</p>
+            <p className="mt-0.5 text-[11px] text-[#94A3A7]">{t('Select your dizi key before transcription.', '转谱前请先选择笛子的调。')} {DIZI_KEYS_SPEC[diziKey].tongyinPitch}–{midiToPitchName(DIZI_KEYS_SPEC[diziKey].rangeEndMidi, diziKey)}</p>
           </div>
           <StudioSelect label="Dizi key to detect" compact value={diziKey} onChange={onDiziKeyChange}
             options={(['G', 'D', 'C', 'F', 'A', 'E', 'Bb'] as DiziKey[]).map(key => ({ value: key, label: `${key} Dizi` }))} />
@@ -371,19 +373,19 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
             />
             <FileAudio className="w-10 h-10 text-[#36B39B] mb-3" />
             <h3 className="text-sm font-semibold text-[#F3F5F4]">
-              {currentSong.source === 'youtube' || currentSong.source === 'suno' ? 'Attach audio to imported song' : 'Upload Monophonic Audio'}
+              {currentSong.source === 'youtube' || currentSong.source === 'suno' ? t('Attach audio to imported URL', '为导入网址添加音频') : t('Upload Audio', '上传音频')}
             </h3>
             <p className="text-xs text-[#94A3A7] mt-1 max-w-md">
               {currentSong.source === 'youtube' || currentSong.source === 'suno'
-                ? `Use an audio file you have permission to analyze from the same ${currentSong.source === 'youtube' ? 'YouTube' : 'Suno'} song. Notes will synchronize to its playback timeline.`
-                : 'Upload a solo dizi or isolated flute stem (MP3/WAV and browser-supported formats). The pitch tracker is range-constrained, but it cannot reliably separate flute from dense backing instruments.'}
+                ? t('Use a permitted audio file matching the URL. Notes will sync to its timeline.', '请导入与网址对应的获授权音频，音符将按时间轴同步。')
+                : t('For best results, upload a solo dizi or isolated flute stem (MP3/WAV).', '为获得更佳结果，请上传笛子独奏或分离的笛子音轨（MP3/WAV）。')}
             </p>
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={isProcessing}
               className="mt-4 px-4 py-2 rounded-lg bg-[#B4F45A] text-[#0B1014] text-xs font-semibold hover:bg-[#c3f77a] transition-all disabled:opacity-50 shadow-md"
             >
-              {isProcessing ? 'Analyzing Audio...' : 'Select Audio File'}
+              {isProcessing ? t('Analyzing Audio…', '正在分析音频…') : t('Select Audio File', '选择音频文件')}
             </button>
           </div>
         )}
@@ -402,17 +404,17 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
             </button>
             <div>
               <h3 className="text-sm font-semibold text-[#F3F5F4]">
-                {isRecording ? 'Listening in Real-time...' : 'Click to Whistle / Play Dizi'}
+                {isRecording ? t('Listening in real time…', '正在实时聆听…') : t('Whistle or play the dizi', '吹口哨或演奏笛子')}
               </h3>
               <p className="text-xs text-[#94A3A7] mt-1">
-                Sing or play into your microphone to transcribe individual notes into your score.
+                {t('Sing or play into your microphone to transcribe notes into the score.', '对着麦克风歌唱或吹奏，即可将音符转写至乐谱。')}
               </p>
             </div>
 
             {recordedPitches.length > 0 && (
               <div className="w-full max-w-md bg-[#0E171A] border border-[#1A2E33] rounded-lg p-3">
                 <div className="text-xs text-[#94A3A7] mb-2 font-mono">
-                  Captured Notes: {recordedPitches.length}
+                  {t('Captured notes:', '已捕捉音符：')} {recordedPitches.length}
                 </div>
                 <div className="flex flex-wrap gap-1.5 justify-center max-h-24 overflow-y-auto">
                   {recordedPitches.map((p, i) => (
@@ -428,7 +430,7 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
                   onClick={handleApplyRecordedNotes}
                   className="mt-3 px-3 py-1.5 rounded-lg bg-[#36B39B] text-[#0B1014] text-xs font-bold hover:bg-[#43d4b7] transition-all"
                 >
-                  Insert Notes into Current Score
+                  {t('Insert Notes into Current Score', '将音符加入当前乐谱')}
                 </button>
               </div>
             )}
@@ -439,7 +441,7 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
           <div className="p-2 sm:p-4 max-w-xl mx-auto space-y-4">
             <div>
               <label className="block text-xs font-medium text-[#F3F5F4] mb-1">
-                YouTube URL or Suno AI Audio Track Link
+                URL
               </label>
               <div className="flex flex-col sm:flex-row gap-2">
                 <input
@@ -447,7 +449,7 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
                   value={youtubeUrl}
                   onChange={(e) => setYoutubeUrl(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') void handleImportUrl(); }}
-                  placeholder="https://www.youtube.com/watch?v=... or https://suno.com/song/..."
+                  placeholder={t('Paste a song or video URL…', '粘贴歌曲或视频网址…')}
                   className="flex-1 min-w-0 bg-[#0E171A] border border-[#1A2E33] rounded-lg px-3 py-2.5 text-xs text-[#F3F5F4] focus:outline-none focus:border-[#36B39B]"
                 />
                 <button
@@ -455,12 +457,12 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
                   disabled={isProcessing}
                   className="px-4 py-2.5 bg-[#B4F45A] text-[#0B1014] rounded-lg text-xs font-semibold hover:bg-[#c3f77a] disabled:opacity-50"
                 >
-                  {isProcessing ? 'Importing…' : 'Import Link'}
+                  {isProcessing ? t('Importing…', '正在导入…') : t('Extract & Transcribe', '提取并转谱')}
                 </button>
               </div>
             </div>
             <p className="text-[11px] text-[#94A3A7] leading-relaxed">
-              Suno links will automatically transcribe when their audio is downloadable and accessible. Otherwise download your own MP3/WAV from Suno and attach it. YouTube uses the official embedded player; its iframe cannot expose audio samples.
+              {t('Paste a supported URL to extract audio and transcribe dizi notes. The link and score are saved locally.', '粘贴受支持的网址以提取音频并转写笛子音符。网址和乐谱将保存在本机。')}
             </p>
           </div>
         )}
@@ -476,7 +478,7 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
       {/* 3. Interactive Note List & Transcribed Score Editor */}
       <details onToggle={event => setEditorOpen(event.currentTarget.open)} className="bg-[#111D20] border border-[#1A2E33] rounded-xl p-3 sm:p-5 group">
         <summary className="flex items-center justify-between cursor-pointer list-none text-sm font-semibold text-[#F3F5F4]">
-          Edit detected notes ({currentSong.notes.length})
+          {t('Edit detected notes', '编辑检测到的音符')} ({currentSong.notes.length})
           <ChevronDown className="w-4 h-4 text-[#36B39B] group-open:rotate-180 transition-transform" />
         </summary>
         {editorOpen && <div className="mt-4">
@@ -484,7 +486,7 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
           <div className="flex items-center gap-2">
             <Music className="w-4 h-4 text-[#B4F45A]" />
             <h3 className="text-sm font-semibold text-[#F3F5F4]">
-              Score Note Editor ({currentSong.notes.length} notes)
+              {t('Score Note Editor', '乐谱音符编辑器')} ({currentSong.notes.length} {t('notes', '个音符')})
             </h3>
           </div>
 
@@ -493,7 +495,7 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
             className="flex items-center gap-1.5 px-3 py-1.5 bg-[#16272C] hover:bg-[#1C333A] text-[#B4F45A] rounded-lg text-xs font-medium border border-[#1F3D3D] transition-colors"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>Add Note</span>
+            <span>{t('Add Note', '添加音符')}</span>
           </button>
         </div>
 
