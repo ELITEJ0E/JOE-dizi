@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { ViewMode, Song, DiziKey, FingeringSystem } from './types/dizi';
 import { PRESET_SONGS } from './data/presetSongs';
-import { calculateMusicalTonic, findFingering, getJianpuForMidi, pitchNameToMidi, midiToPitchName } from './music/diziTheory';
+import { calculateMusicalTonic, getJianpuForMidi, pitchNameToMidi, midiToPitchName, midiToFrequency } from './music/diziTheory';
 import { diziAudio } from './audio/diziSynth';
-import { rememberCurrentSong, restoreCurrentSong, saveUserSong } from './utils/songStorage';
-import { getAudioFile } from './utils/audioLibrary';
+import { rememberCurrentSong, restoreCurrentSong, saveUserSong, deleteUserSong } from './utils/songStorage';
+import { getAudioFile, deleteAudioFile } from './utils/audioLibrary';
 import { useLanguage } from './i18n/LanguageContext';
 
 // Components
@@ -110,6 +110,16 @@ export default function App() {
     rememberCurrentSong(song.id);
   }, []);
 
+  const handleDeleteStoredSong = async (songId: string): Promise<boolean> => {
+    if (!deleteUserSong(songId)) return false;
+    if (currentSong.id === songId) {
+      loadSong(PRESET_SONGS[0]);
+      setCurrentView('songbook');
+    }
+    await deleteAudioFile(songId);
+    return true;
+  };
+
   useEffect(() => {
     if (currentSong.source !== 'preset') saveUserSong(currentSong);
   }, [currentSong]);
@@ -212,14 +222,11 @@ export default function App() {
         return;
       }
 
-      // Compute pitch fingering and sound
-      const fingering = findFingering(note.pitch, diziKey, fingeringSystem);
+      // A missing verified fingering must not mute the actual sounding pitch.
+      // The diagram stays honest about unsupported fingerings separately.
       const beatDurationSec = (60 / currentSong.bpm) / playbackSpeed;
       const noteDurationSec = Math.max(0.2, (note.duration || 1) * beatDurationSec);
-
-      if (fingering) {
-        diziAudio.playNote(fingering.frequency, noteDurationSec * 0.92, note.technique);
-      }
+      diziAudio.playNote(midiToFrequency(Number.isFinite(note.midi) ? note.midi : pitchNameToMidi(note.pitch)), noteDurationSec * 0.92, note.technique);
 
       // Schedule next note
       playbackTimerRef.current = window.setTimeout(() => {
@@ -291,10 +298,7 @@ export default function App() {
         setMediaTime(note.startTime);
         return;
       }
-      const fingering = findFingering(note.pitch, diziKey, fingeringSystem);
-      if (fingering) {
-        diziAudio.playNote(fingering.frequency, 0.8, note.technique);
-      }
+      diziAudio.playNote(midiToFrequency(Number.isFinite(note.midi) ? note.midi : pitchNameToMidi(note.pitch)), 0.8, note.technique);
     }
   };
 
@@ -553,6 +557,7 @@ export default function App() {
             <SongbookView
               currentSong={currentSong}
               onSelectSong={loadSong}
+              onDeleteSong={handleDeleteStoredSong}
             />
           )}
 
@@ -603,6 +608,7 @@ export default function App() {
         isOpen={isExportOpen}
         onClose={() => setIsExportOpen(false)}
         song={displaySong}
+        notationMode={notationMode}
       />
 
       <SettingsModal

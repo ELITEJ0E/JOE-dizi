@@ -7,9 +7,25 @@ class DiziAudioEngine {
   private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
   private noiseBuffer: AudioBuffer | null = null;
-  private voices = new Set<{ stop: () => void }>();
+  private voices = new Set<{ stop: () => void; updateMembrane: (amount: number) => void }>();
   public isMuted = false;
-  public membraneResonance = 0.65;
+  private membraneAmount = 0.65;
+
+  get membraneResonance(): number { return this.membraneAmount; }
+  set membraneResonance(value: number) {
+    this.membraneAmount = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0.65;
+    // Slider feedback also reaches notes that are currently sounding.
+    this.voices.forEach(voice => voice.updateMembrane(this.membraneAmount));
+    try { localStorage.setItem('joe-dizi-membrane-v1', String(this.membraneAmount)); } catch { /* private browsing */ }
+  }
+
+  constructor() {
+    try {
+      const saved = Number(localStorage.getItem('joe-dizi-membrane-v1'));
+      if (Number.isFinite(saved) && saved >= 0 && saved <= 1 && localStorage.getItem('joe-dizi-membrane-v1') !== null)
+        this.membraneAmount = saved;
+    } catch { /* no storage in test or SSR environments */ }
+  }
 
   private initContext() {
     if (!this.ctx) {
@@ -96,18 +112,56 @@ class DiziAudioEngine {
       main.connect(tonalGain);
       tonalGain.connect(toneFilter);
 
-      // Dimo membrane: resonant higher harmonics, stronger on mid/low notes.
+      // The dimo is a vibrating reed membrane, not simply a louder sine wave.
+      // Add a saturated, slightly detuned bright carrier plus a narrow, airy
+      // buzz band that flutters as the membrane rattles. At 0% it is truly dry.
       const membrane = ctx.createOscillator();
       membrane.setPeriodicWave(this.makeHarmonics(ctx, freq, true));
+      membrane.detune.value = 4.5;
+      const saturation = ctx.createWaveShaper();
+      const saturationCurve = new Float32Array(1024);
+      for (let i = 0; i < saturationCurve.length; i++) {
+        const input = (2 * i) / (saturationCurve.length - 1) - 1;
+        saturationCurve[i] = Math.tanh(input * 2.5);
+      }
+      saturation.curve = saturationCurve;
+      saturation.oversample = '2x';
       const dimoFilter = ctx.createBiquadFilter();
       dimoFilter.type = 'bandpass';
-      dimoFilter.frequency.value = Math.min(4400, Math.max(1750, freq * 4));
-      dimoFilter.Q.value = 0.85;
+      dimoFilter.frequency.value = Math.min(5400, Math.max(950, freq * 3.2));
+      dimoFilter.Q.value = 0.7;
       const dimoGain = ctx.createGain();
-      dimoGain.gain.value = Math.max(0, Math.min(1, this.membraneResonance)) * (freq > 900 ? 0.2 : 0.29);
-      membrane.connect(dimoFilter);
+      membrane.connect(saturation);
+      saturation.connect(dimoFilter);
       dimoFilter.connect(dimoGain);
       dimoGain.connect(envelope);
+
+      const membraneNoise = ctx.createBufferSource();
+      membraneNoise.buffer = this.noiseBuffer;
+      membraneNoise.loop = true;
+      const rattlingFilter = ctx.createBiquadFilter();
+      rattlingFilter.type = 'bandpass';
+      rattlingFilter.frequency.value = Math.min(6200, Math.max(1800, freq * 4.1));
+      rattlingFilter.Q.value = 1.7;
+      const rattlingGain = ctx.createGain();
+      rattlingGain.gain.value = 0.24;
+      membraneNoise.connect(rattlingFilter);
+      rattlingFilter.connect(rattlingGain);
+      rattlingGain.connect(dimoGain);
+
+      const flutter = ctx.createOscillator();
+      flutter.type = 'sine';
+      flutter.frequency.value = 29 + Math.min(12, freq / 180);
+      const flutterDepth = ctx.createGain();
+      flutter.connect(flutterDepth);
+      flutterDepth.connect(dimoGain.gain);
+      const updateMembrane = (amount: number) => {
+        const level = Math.pow(amount, 1.35) * (freq > 1400 ? 0.47 : 0.68);
+        dimoGain.gain.setTargetAtTime(level, ctx.currentTime, 0.015);
+        flutterDepth.gain.setTargetAtTime(level * 0.17, ctx.currentTime, 0.015);
+      };
+      dimoGain.gain.value = Math.pow(this.membraneAmount, 1.35) * (freq > 1400 ? 0.47 : 0.68);
+      flutterDepth.gain.value = dimoGain.gain.value * 0.17;
 
       // Continuous breath, with a short consonant-like chiff on tongue attacks.
       const breath = ctx.createBufferSource();
@@ -151,11 +205,11 @@ class DiziAudioEngine {
       depth.connect(main.frequency);
       depth.connect(membrane.frequency);
 
-      const sources = [main, membrane, breath, vibrato];
+      const sources = [main, membrane, membraneNoise, flutter, breath, vibrato];
       for (const source of sources) { source.start(start); source.stop(finish + 0.012); }
       const voice = { stop: () => {
         for (const source of sources) { try { source.stop(); } catch { /* already ended */ } }
-      } };
+      }, updateMembrane };
       this.voices.add(voice);
       main.onended = () => {
         this.voices.delete(voice);

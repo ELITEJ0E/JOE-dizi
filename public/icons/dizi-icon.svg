@@ -1,31 +1,38 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
-    <linearGradient id="bamboo" x1="0" y1="0" x2="1" y2="1">
-      <stop stop-color="#e8ba6b"/>
-      <stop offset=".47" stop-color="#be763b"/>
-      <stop offset="1" stop-color="#6c381d"/>
-    </linearGradient>
-    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
-      <stop stop-color="#172e2c"/>
+    <linearGradient id="night" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#132724"/>
+      <stop offset=".55" stop-color="#09161a"/>
       <stop offset="1" stop-color="#0b1014"/>
     </linearGradient>
+    <linearGradient id="bamboo" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#4d2817"/>
+      <stop offset=".23" stop-color="#94603d"/>
+      <stop offset=".56" stop-color="#d1a16a"/>
+      <stop offset=".8" stop-color="#9c6037"/>
+      <stop offset="1" stop-color="#462313"/>
+    </linearGradient>
+    <radialGradient id="halo"><stop stop-color="#b4f45a" stop-opacity=".2"/><stop offset="1" stop-color="#b4f45a" stop-opacity="0"/></radialGradient>
   </defs>
-  <rect width="512" height="512" rx="112" fill="url(#background)"/>
-  <circle cx="256" cy="256" r="190" fill="none" stroke="#29463f" stroke-width="3"/>
-  <path d="M100 140Q163 102 205 115M307 397Q363 395 416 346" fill="none" stroke="#b4f45a" stroke-width="8" stroke-linecap="round" opacity=".65"/>
-  <g transform="rotate(-37 256 256)">
-    <rect x="224" y="60" width="64" height="390" rx="22" fill="url(#bamboo)" stroke="#e8b975" stroke-width="4"/>
-    <rect x="216" y="73" width="80" height="22" rx="6" fill="#eadfc1"/>
-    <path d="M225 136h62M225 371h62" stroke="#61381f" stroke-width="7" opacity=".9"/>
-    <ellipse cx="256" cy="156" rx="16" ry="12" fill="#0b1014" stroke="#edb974" stroke-width="4"/>
-    <ellipse cx="256" cy="194" rx="11" ry="9" fill="#ede0ae" stroke="#6c381d" stroke-width="3"/>
-    <ellipse cx="256" cy="230" rx="12" ry="9" fill="#0b1014"/>
-    <ellipse cx="256" cy="265" rx="12" ry="9" fill="#0b1014"/>
-    <ellipse cx="256" cy="300" rx="12" ry="9" fill="#0b1014"/>
-    <ellipse cx="256" cy="335" rx="12" ry="9" fill="#0b1014"/>
-    <ellipse cx="256" cy="370" rx="12" ry="9" fill="#0b1014"/>
-    <ellipse cx="256" cy="405" rx="12" ry="9" fill="#0b1014"/>
-    <rect x="220" y="432" width="72" height="18" rx="6" fill="#eadfc1"/>
+  <rect width="512" height="512" rx="100" fill="url(#night)"/>
+  <rect x="19" y="19" width="474" height="474" rx="84" fill="none" stroke="#24443c" stroke-width="4"/>
+  <circle cx="255" cy="238" r="195" fill="url(#halo)"/>
+  <g transform="rotate(-34 257 245)">
+    <rect x="228" y="94" width="58" height="306" rx="12" fill="url(#bamboo)" stroke="#5b3924" stroke-width="2"/>
+    <rect x="222" y="103" width="70" height="15" rx="5" fill="#e6ddc5" stroke="#89745a" stroke-width="2"/>
+    <rect x="222" y="383" width="70" height="15" rx="5" fill="#e6ddc5" stroke="#89745a" stroke-width="2"/>
+    <path d="M228 151h58M228 349h58" stroke="#3e2419" stroke-width="7" opacity=".82"/>
+    <ellipse cx="257" cy="138" rx="12" ry="10" fill="#0b1014" stroke="#513221" stroke-width="3"/>
+    <ellipse cx="257" cy="175" rx="10" ry="9" fill="#e5ddc5" stroke="#604a37" stroke-width="3"/>
+    <circle cx="257" cy="217" r="12" fill="#0c1517" stroke="#423221" stroke-width="3"/>
+    <circle cx="257" cy="251" r="12" fill="#0c1517" stroke="#423221" stroke-width="3"/>
+    <circle cx="257" cy="285" r="12" fill="#0c1517" stroke="#423221" stroke-width="3"/>
+    <circle cx="257" cy="319" r="12" fill="#0c1517" stroke="#423221" stroke-width="3"/>
+    <circle cx="257" cy="361" r="10" fill="#0c1517" stroke="#423221" stroke-width="3"/>
   </g>
-  <path d="M389 101l9 25 25 9-25 9-9 25-9-25-25-9 25-9z" fill="#b4f45a"/>
+  <!-- Same lime-green four-point bamboo sprout mark as the app sidebar. -->
+  <path d="M146 66C151 123 164 140 215 153C164 166 151 184 146 242C141 184 128 166 77 153C128 140 141 123 146 66Z" fill="#b4f45a"/>
+  <path d="M352 94C355 119 364 130 387 136C364 142 355 151 352 177C349 151 340 142 318 136C340 130 349 119 352 94Z" fill="#36b39b"/>
+  <path d="M139 421h234" stroke="#31594c" stroke-width="2" stroke-linecap="round"/>
+  <text x="256" y="460" font-family="Georgia,serif" font-weight="bold" font-size="33" letter-spacing="4" text-anchor="middle" fill="#f3f5f4">JOE DIZI</text>
 </svg>

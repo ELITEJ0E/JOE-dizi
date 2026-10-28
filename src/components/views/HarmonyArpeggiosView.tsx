@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { DiziKey, FingeringSystem } from '../../types/dizi';
-import { findFingering } from '../../music/diziTheory';
+import { findFingering, jianpuDegreeToMidi, midiToFrequency, midiToPitchName } from '../../music/diziTheory';
 import { DiziFingeringDiagram } from '../DiziFingeringDiagram';
 import { diziAudio } from '../../audio/diziSynth';
 import { Play, Volume2, Sparkles, Layers } from 'lucide-react';
@@ -13,9 +13,8 @@ interface HarmonyArpeggiosViewProps {
 interface ArpeggioPattern {
   name: string;
   nameZh: string;
-  chord: string;
+  minor?: boolean;
   degrees: string[];
-  pitches: string[];
   description: string;
 }
 
@@ -28,50 +27,46 @@ export const HarmonyArpeggiosView: React.FC<HarmonyArpeggiosViewProps> = ({
 
   const patterns: ArpeggioPattern[] = [
     {
-      name: 'G Major Pentatonic Arpeggio',
-      nameZh: 'G调大五度琶音 (1 - 3 - 5 - 1̇)',
-      chord: 'G',
+      name: 'Tonic Major Arpeggio',
+      nameZh: '主音大三和弦 (1 - 3 - 5 - 1̇)',
       degrees: ['1', '3', '5', '1̇'],
-      pitches: ['G5', 'B5', 'D6', 'G6'],
-      description: 'The fundamental tonic arpeggio for G Bangdi. Bright, noble, and expansive.'
+      description: 'The tonic major arpeggio for the selected dizi key. Bright, noble, and expansive.'
     },
     {
-      name: 'D Major Triad Cascade',
-      nameZh: 'D和弦分解琶音 (2 - #4 - 6 - 2̇)',
-      chord: 'D',
+      name: 'Second Degree Major Cascade',
+      nameZh: '二级大三和弦 (2 - #4 - 6 - 2̇)',
       degrees: ['2', '#4', '6', '2̇'],
-      pitches: ['A5', 'C#6', 'E6', 'A6'],
       description: 'Dominant tension resolution. Requires smooth finger movement on hole 5 and 6.'
     },
     {
-      name: 'E Minor Modal Arpeggio',
-      nameZh: 'E小调羽调琶音 (6̣ - 1 - 3 - 6)',
-      chord: 'Em',
+      name: 'Relative Minor Arpeggio',
+      nameZh: '羽调小三和弦 (6̣ - 1 - 3 - 6)',
+      minor: true,
       degrees: ['6̣', '1', '3', '6'],
-      pitches: ['E5', 'G5', 'B5', 'E6'],
       description: 'Poetic, gentle, evoking moonlit rivers and evening solitude.'
     },
     {
-      name: 'C Major Lyrical Flow',
-      nameZh: 'C和弦四度琶音 (4 - 6 - 1̇ - 4̇)',
-      chord: 'C',
+      name: 'Subdominant Major Flow',
+      nameZh: '下属大三和弦 (4 - 6 - 1̇ - 4̇)',
       degrees: ['4', '6', '1̇', '4̇'],
-      pitches: ['C6', 'E6', 'G6', 'C7'],
       description: 'Subdominant progression. Common in modern pentatonic pop arrangements.'
     }
   ];
 
   const currentPattern = patterns[activePatternIndex];
+  const pitchOf = (degree: string) => {
+    const midi = jianpuDegreeToMidi(degree, diziKey, fingeringSystem);
+    return { midi, pitch: midi === null ? '—' : midiToPitchName(midi, diziKey) };
+  };
+  const chordOf = (pattern: ArpeggioPattern) => `${pitchOf(pattern.degrees[0]).pitch.replace(/-?\d+$/, '')}${pattern.minor ? 'm' : ''}`;
 
   const handlePlayArpeggio = async (pat: ArpeggioPattern) => {
     if (isPlaying) return;
     setIsPlaying(true);
 
-    for (const pitch of pat.pitches) {
-      const fingering = findFingering(pitch, diziKey, fingeringSystem);
-      if (fingering) {
-        diziAudio.playNote(fingering.frequency, 0.45);
-      }
+    for (const degree of pat.degrees) {
+      const { midi } = pitchOf(degree);
+      if (midi !== null) diziAudio.playNote(midiToFrequency(midi), 0.45);
       await new Promise(r => setTimeout(r, 420));
     }
 
@@ -118,7 +113,7 @@ export const HarmonyArpeggiosView: React.FC<HarmonyArpeggiosViewProps> = ({
             >
               <div className="flex items-center justify-between">
                 <span className="text-xs font-mono font-bold text-[#B4F45A] px-2 py-0.5 rounded bg-[#16272C]">
-                  {pat.chord}
+                  {chordOf(pat)}
                 </span>
                 <span className="text-xs text-[#94A3A7] font-mono">
                   {pat.degrees.join(' - ')}
@@ -134,7 +129,7 @@ export const HarmonyArpeggiosView: React.FC<HarmonyArpeggiosViewProps> = ({
 
               <div className="mt-4 pt-3 border-t border-[#1A2E33]/60 flex items-center justify-between">
                 <span className="text-xs font-mono text-[#36B39B]">
-                  {pat.pitches.join(' · ')}
+                  {pat.degrees.map(degree => pitchOf(degree).pitch).join(' · ')}
                 </span>
                 <button
                   onClick={(e) => {
@@ -158,13 +153,14 @@ export const HarmonyArpeggiosView: React.FC<HarmonyArpeggiosViewProps> = ({
         </h3>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {currentPattern.pitches.map((pitch, pIdx) => {
+          {currentPattern.degrees.map((degree, pIdx) => {
+            const { pitch, midi } = pitchOf(degree);
             const fingering = findFingering(pitch, diziKey, fingeringSystem);
             return (
               <div
                 key={pIdx}
                 onClick={() => {
-                  if (fingering) diziAudio.playNote(fingering.frequency, 0.8);
+                  if (midi !== null) diziAudio.playNote(midiToFrequency(midi), 0.8);
                 }}
                 className="bg-[#0E171A] border border-[#1A2E33] hover:border-[#36B39B] rounded-xl p-4 flex flex-col items-center cursor-pointer transition-all"
               >
@@ -177,14 +173,11 @@ export const HarmonyArpeggiosView: React.FC<HarmonyArpeggiosViewProps> = ({
                 </span>
 
                 <div className="my-2">
-                  <DiziFingeringDiagram
-                    holes={fingering?.holes || [1, 1, 1, 1, 1, 1]}
-                    size="sm"
-                  />
+                  {fingering ? <DiziFingeringDiagram holes={fingering.holes} size="sm" /> : <span className="flex min-h-28 items-center text-center text-xs text-amber-200">No verified fingering</span>}
                 </div>
 
                 <span className="text-[11px] text-[#36B39B]">
-                  {fingering?.registerZh || '急吹'}
+                  {fingering?.registerZh || 'Pitch preview only'}
                 </span>
               </div>
             );

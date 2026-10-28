@@ -29,6 +29,17 @@ export function saveUserSong(song: Song): void {
   }
 }
 
+/** Delete only user-saved scores; built-in preset songs are immutable. */
+export function deleteUserSong(songId: string): boolean {
+  try {
+    const current = readUserSongs();
+    if (!current.some(song => song.id === songId)) return false;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(current.filter(song => song.id !== songId)));
+    if (localStorage.getItem(RECENT_KEY) === songId) localStorage.removeItem(RECENT_KEY);
+    return true;
+  } catch { return false; }
+}
+
 export function rememberCurrentSong(id: string): void {
   try { localStorage.setItem(RECENT_KEY, id); } catch { /* storage disabled */ }
 }

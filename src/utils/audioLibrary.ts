@@ -41,3 +41,17 @@ export async function getAudioFile(songId: string): Promise<Blob | null> {
     });
   } catch { return null; }
 }
+
+/** Remove the imported audio as well as the songbook's localStorage entry. */
+export async function deleteAudioFile(songId: string): Promise<boolean> {
+  try {
+    const db = await openLibrary();
+    return await new Promise<boolean>(resolve => {
+      const transaction = db.transaction(STORE, 'readwrite');
+      transaction.objectStore(STORE).delete(songId);
+      transaction.oncomplete = () => { db.close(); resolve(true); };
+      transaction.onerror = () => { db.close(); resolve(false); };
+      transaction.onabort = () => { db.close(); resolve(false); };
+    });
+  } catch { return false; }
+}

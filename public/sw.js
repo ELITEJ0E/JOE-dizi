@@ -1,4 +1,4 @@
-const CACHE_NAME = 'joe-dizi-shell-v1';
+const CACHE_NAME = 'joe-dizi-shell-v2';
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icons/dizi-192.png', '/icons/dizi-512.png', '/icons/dizi-maskable-512.png'];
 
 self.addEventListener('install', event => {

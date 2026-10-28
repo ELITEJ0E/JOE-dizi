@@ -552,7 +552,7 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
                         >{editingNoteId === note.id ? 'Save' : 'Edit'}</button>
                         <button
                           onClick={() => {
-                            if (fingering) diziAudio.playNote(fingering.frequency, 0.6, note.technique);
+                            diziAudio.playNote(midiToFrequency(note.midi), 0.6, note.technique);
                           }}
                           className="p-1 hover:text-[#B4F45A] transition-colors"
                           title="Preview Note"

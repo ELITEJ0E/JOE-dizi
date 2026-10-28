@@ -195,6 +195,19 @@ const CHROMATIC_JIANPU = [
   '1', '#1', '2', 'b3', '3', '4', '#4', '5', 'b6', '6', 'b7', '7'
 ] as const;
 
+/** Translate actual Jianpu degrees into sounding MIDI for the selected flute.
+ * Do not use a fixed G-flute lookup for scale previews: that silently skips
+ * notes when the fingering chart is transposed to another dizi key. */
+export function jianpuDegreeToMidi(degree: string, diziKey: DiziKey, system: FingeringSystem): number | null {
+  const match = /^([#b]?)([1-7])([\u0307\u0323]*)$/u.exec(degree);
+  if (!match) return null;
+  const steps = [0, 2, 4, 5, 7, 9, 11];
+  const [, accidental, number, octaveMarks] = match;
+  const tonic = G_DIZI_TONIC_MIDI[system] + pitchNameToMidi(DIZI_KEYS_SPEC[diziKey].tongyinPitch) - 74;
+  const octaves = [...octaveMarks].reduce((shift, mark) => shift + (mark === '\u0307' ? 1 : -1), 0);
+  return tonic + steps[Number(number) - 1] + (accidental === '#' ? 1 : accidental === 'b' ? -1 : 0) + 12 * octaves;
+}
+
 export function getJianpuForMidi(midi: number, diziKey: DiziKey, system: FingeringSystem): {
   jianpu: string;
   octaveDot: -2 | -1 | 0 | 1 | 2;

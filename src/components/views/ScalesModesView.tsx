@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { DiziKey, FingeringSystem } from '../../types/dizi';
-import { CHINESE_MODES, ChineseMode, findFingering } from '../../music/diziTheory';
+import { CHINESE_MODES, findFingering, jianpuDegreeToMidi, midiToFrequency, midiToPitchName } from '../../music/diziTheory';
 import { DiziFingeringDiagram } from '../DiziFingeringDiagram';
 import { diziAudio } from '../../audio/diziSynth';
 import { Play, Sparkles, Music2, BookOpen } from 'lucide-react';
@@ -32,16 +32,8 @@ export const ScalesModesView: React.FC<ScalesModesViewProps> = ({
     for (let i = 0; i < sequence.length; i++) {
       setActiveStepIndex(i);
       const degree = sequence[i];
-      // Map degree to pitch based on G dizi (or active key)
-      const pitchMap: Record<string, string> = {
-        '1': 'G5', '2': 'A5', '3': 'B5', '4': 'C6', '5': 'D6', '6': 'E6', '7': 'F#6',
-        '1̇': 'G6', '2̇': 'A6', '3̇': 'B6', '4̇': 'C7', '5̇': 'D7', '6̇': 'E7'
-      };
-      const pitch = pitchMap[degree] || 'G5';
-      const fingering = findFingering(pitch, diziKey, fingeringSystem);
-      if (fingering) {
-        diziAudio.playNote(fingering.frequency, 0.45);
-      }
+      const midi = jianpuDegreeToMidi(degree, diziKey, fingeringSystem);
+      if (midi !== null) diziAudio.playNote(midiToFrequency(midi), 0.45);
       await new Promise(r => setTimeout(r, 480));
     }
 
@@ -124,11 +116,8 @@ export const ScalesModesView: React.FC<ScalesModesViewProps> = ({
         {/* Degrees Step Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
           {currentMode.degrees.map((deg, idx) => {
-            const pitchMap: Record<string, string> = {
-              '1': 'G5', '2': 'A5', '3': 'B5', '4': 'C6', '5': 'D6', '6': 'E6', '7': 'F#6',
-              '1̇': 'G6', '2̇': 'A6', '3̇': 'B6', '4̇': 'C7', '5̇': 'D7', '6̇': 'E7'
-            };
-            const targetPitch = pitchMap[deg] || 'G5';
+            const targetMidi = jianpuDegreeToMidi(deg, diziKey, fingeringSystem);
+            const targetPitch = targetMidi === null ? '—' : midiToPitchName(targetMidi, diziKey);
             const fingering = findFingering(targetPitch, diziKey, fingeringSystem);
             const isStepActive = activeStepIndex === idx;
 
@@ -136,7 +125,7 @@ export const ScalesModesView: React.FC<ScalesModesViewProps> = ({
               <div
                 key={idx}
                 onClick={() => {
-                  if (fingering) diziAudio.playNote(fingering.frequency, 0.8);
+                  if (targetMidi !== null) diziAudio.playNote(midiToFrequency(targetMidi), 0.8);
                 }}
                 className={`bg-[#0E171A] border rounded-xl p-3 flex flex-col items-center cursor-pointer transition-all ${
                   isStepActive
@@ -153,14 +142,11 @@ export const ScalesModesView: React.FC<ScalesModesViewProps> = ({
                 </span>
 
                 <div className="my-2">
-                  <DiziFingeringDiagram
-                    holes={fingering?.holes || [1, 1, 1, 1, 1, 1]}
-                    size="sm"
-                  />
+                  {fingering ? <DiziFingeringDiagram holes={fingering.holes} size="sm" /> : <span className="flex min-h-28 items-center text-center text-xs text-amber-200">No verified fingering for this pitch</span>}
                 </div>
 
                 <span className="text-[10px] text-[#36B39B] font-medium">
-                  {fingering?.registerZh || '急吹'}
+                  {fingering?.registerZh || 'Pitch preview only'}
                 </span>
               </div>
             );
