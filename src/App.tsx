@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { ViewMode, Song, DiziKey, FingeringSystem } from './types/dizi';
 import { PRESET_SONGS } from './data/presetSongs';
-import { calculateMusicalTonic, findFingering } from './music/diziTheory';
+import { calculateMusicalTonic, findFingering, getJianpuForMidi, pitchNameToMidi, midiToPitchName } from './music/diziTheory';
 import { diziAudio } from './audio/diziSynth';
 import { saveUserSong } from './utils/songStorage';
 
@@ -12,6 +12,7 @@ import { SheetMusicView } from './components/SheetMusicView';
 import { LiveFingeringPanel } from './components/LiveFingeringPanel';
 import { BottomTimeline } from './components/BottomTimeline';
 import { YouTubeSyncPlayer } from './components/YouTubeSyncPlayer';
+import { StudioSelect } from './components/StudioSelect';
 import { ExportModal } from './components/ExportModal';
 import { SettingsModal } from './components/SettingsModal';
 
@@ -42,7 +43,7 @@ export default function App() {
   // Default note index 3 corresponds to Measure 3 Note 4 (2̇ in screenshot!)
   const [activeNoteIndex, setActiveNoteIndex] = useState<number>(3);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  const [playbackSpeed, setPlaybackSpeed] = useState<number>(0.75);
+  const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
   const [isLooping, setIsLooping] = useState<boolean>(false);
   const [isPracticeMode, setIsPracticeMode] = useState<boolean>(true);
   const [mediaTime, setMediaTime] = useState(0);
@@ -69,9 +70,11 @@ export default function App() {
     if (Number.isFinite(duration) && duration > 0) setMediaDuration(duration);
     const notes = currentSong.notes;
     if (!notes.length || notes[0].startTime === undefined) return;
-    let index = 0;
+    let index = -1;
     for (let i = 0; i < notes.length; i++) {
-      if ((notes[i].startTime ?? Infinity) <= seconds) index = i;
+      if ((notes[i].startTime ?? Infinity) <= seconds) {
+        if (seconds <= (notes[i].startTime ?? 0) + (notes[i].durationSeconds ?? 0) + 0.06) index = i;
+      }
       else break;
     }
     setActiveNoteIndex(previous => previous === index ? previous : index);
@@ -95,8 +98,23 @@ export default function App() {
     if (currentSong.source !== 'preset') saveUserSong(currentSong);
   }, [currentSong]);
 
-  const currentNote = currentSong.notes[activeNoteIndex] || currentSong.notes[0] || null;
-  const nextNote = currentSong.notes[activeNoteIndex + 1] || null;
+  // Always derive displayed Jianpu from the *actual sounding pitch* and
+  // selected tonic. Persisted Jianpu from a different key must not be shown.
+  const displaySong = useMemo<Song>(() => ({
+    ...currentSong,
+    diziKey,
+    fingeringSystem,
+    musicalKey: calculateMusicalTonic(diziKey, fingeringSystem),
+    notes: currentSong.notes.map(note => ({
+      ...note,
+      pitch: midiToPitchName(pitchNameToMidi(note.pitch), diziKey),
+      ...getJianpuForMidi(pitchNameToMidi(note.pitch), diziKey, fingeringSystem),
+    })),
+  }), [currentSong, diziKey, fingeringSystem]);
+  const currentNote = usesSourcePlayback
+    ? displaySong.notes[activeNoteIndex] || null
+    : displaySong.notes[activeNoteIndex] || displaySong.notes[0] || null;
+  const nextNote = displaySong.notes[activeNoteIndex + 1] || null;
 
   // Formatted timestamps
   const totalNotes = currentSong.notes.length;
@@ -334,8 +352,9 @@ export default function App() {
 
               {showImporter && (
                 <DiziTranscriberView
-                  currentSong={currentSong}
+                  currentSong={displaySong}
                   diziKey={diziKey}
+                  onDiziKeyChange={setDiziKey}
                   fingeringSystem={fingeringSystem}
                   onUpdateSong={setCurrentSong}
                   onLoadSong={loadSong}
@@ -385,38 +404,17 @@ export default function App() {
                   <span className="text-[#3E5054] font-mono">|</span>
 
                   {/* Dropdown 1: Dizi Key (e.g. G Dizi ▾) */}
-                  <div className="relative">
-                    <select
-                      value={diziKey}
-                      onChange={(e) => setDiziKey(e.target.value as DiziKey)}
-                      aria-label="Select Dizi Key"
-                      className="appearance-none bg-[#111D20] border border-[#1A2E33] hover:border-[#36B39B] rounded-lg pl-3 pr-7 py-1 text-xs font-mono font-medium text-[#F3F5F4] focus:outline-none transition-colors cursor-pointer"
-                    >
-                      {(['G', 'D', 'C', 'F', 'A', 'E', 'Bb'] as DiziKey[]).map((k) => (
-                        <option key={k} value={k}>
-                          {k} Dizi
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="w-3.5 h-3.5 absolute right-2 top-1/2 -translate-y-1/2 text-[#94A3A7] pointer-events-none" />
-                  </div>
+                  <StudioSelect label="Select Dizi Key" compact value={diziKey} onChange={setDiziKey}
+                    options={(['G', 'D', 'C', 'F', 'A', 'E', 'Bb'] as DiziKey[]).map(key => ({ value: key, label: `${key} Dizi` }))} />
 
                   {/* Dropdown 2: Fingering System (e.g. 筒音作5 ▾) */}
-                  <div className="relative">
-                    <select
-                      value={fingeringSystem}
-                      onChange={(e) => setFingeringSystem(e.target.value as FingeringSystem)}
-                      aria-label="Select Fingering System"
-                      className="appearance-none bg-[#111D20] border border-[#1A2E33] hover:border-[#36B39B] rounded-lg pl-3 pr-7 py-1 text-xs font-serif font-medium text-[#F3F5F4] focus:outline-none transition-colors cursor-pointer"
-                    >
-                      <option value="tongyin_5">筒音作5</option>
-                      <option value="tongyin_2">筒音作2</option>
-                      <option value="tongyin_1">筒音作1</option>
-                      <option value="tongyin_6">筒音作6</option>
-                      <option value="tongyin_3">筒音作3</option>
-                    </select>
-                    <ChevronDown className="w-3.5 h-3.5 absolute right-2 top-1/2 -translate-y-1/2 text-[#94A3A7] pointer-events-none" />
-                  </div>
+                  <StudioSelect label="Select Fingering System" compact value={fingeringSystem} onChange={setFingeringSystem} options={[
+                    { value: 'tongyin_5', label: '筒音作5' },
+                    { value: 'tongyin_2', label: '筒音作2' },
+                    { value: 'tongyin_1', label: '筒音作1' },
+                    { value: 'tongyin_6', label: '筒音作6' },
+                    { value: 'tongyin_3', label: '筒音作3' },
+                  ]} />
 
                   {/* Dropdown 3: Musical Tonic (e.g. 1 = G ▾) */}
                   <div className="relative">
@@ -426,19 +424,11 @@ export default function App() {
                   </div>
 
                   {/* Dropdown 4: Notation Format (e.g. Jianpu ▾) */}
-                  <div className="relative">
-                    <select
-                      value={notationMode}
-                      onChange={(e) => setNotationMode(e.target.value as 'jianpu' | 'staff' | 'dual')}
-                      aria-label="Select Notation Format"
-                      className="appearance-none bg-[#111D20] border border-[#1A2E33] hover:border-[#36B39B] rounded-lg pl-3 pr-7 py-1 text-xs font-mono font-medium text-[#F3F5F4] focus:outline-none transition-colors cursor-pointer"
-                    >
-                      <option value="dual">Dual (Jianpu + Staff)</option>
-                      <option value="jianpu">Jianpu 简谱</option>
-                      <option value="staff">Staff 五线谱</option>
-                    </select>
-                    <ChevronDown className="w-3.5 h-3.5 absolute right-2 top-1/2 -translate-y-1/2 text-[#94A3A7] pointer-events-none" />
-                  </div>
+                  <StudioSelect label="Select Notation Format" compact value={notationMode} onChange={setNotationMode} options={[
+                    { value: 'dual', label: 'Dual (Jianpu + Staff)' },
+                    { value: 'jianpu', label: 'Jianpu 简谱' },
+                    { value: 'staff', label: 'Staff 五线谱' },
+                  ]} />
 
                   {/* BPM Badge (e.g. 92 BPM) */}
                   <div className="bg-[#111D20] border border-[#1A2E33] rounded-lg px-3 py-1 text-xs font-mono text-[#F3F5F4]">
@@ -462,7 +452,7 @@ export default function App() {
                 {/* Center: Sheet Music View (7 cols on lg, or 8 cols on xl) */}
                 <div className="lg:col-span-8 xl:col-span-8">
                   <SheetMusicView
-                    song={currentSong}
+                    song={displaySong}
                     activeNoteIndex={activeNoteIndex}
                     notationMode={notationMode}
                     diziKey={diziKey}
@@ -509,7 +499,7 @@ export default function App() {
 
           {currentView === 'practice' && (
             <PracticeStudioView
-              currentSong={currentSong}
+              currentSong={displaySong}
               diziKey={diziKey}
               fingeringSystem={fingeringSystem}
               onJumpToMeasure={(m) => {
@@ -572,7 +562,7 @@ export default function App() {
       <ExportModal
         isOpen={isExportOpen}
         onClose={() => setIsExportOpen(false)}
-        song={currentSong}
+        song={displaySong}
       />
 
       <SettingsModal

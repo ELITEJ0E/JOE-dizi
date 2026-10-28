@@ -1,7 +1,7 @@
 import React from 'react';
 import { DiziKey, FingeringSystem, DiziNote, SixHoles } from '../types/dizi';
 import { DiziFingeringDiagram } from './DiziFingeringDiagram';
-import { findFingering, DIZI_TECHNIQUES, getFingeringsFor } from '../music/diziTheory';
+import { findFingering, DIZI_TECHNIQUES, getFingeringsFor, midiToFrequency, pitchNameToMidi } from '../music/diziTheory';
 import { Volume2, Sparkles, HelpCircle } from 'lucide-react';
 import { diziAudio } from '../audio/diziSynth';
 
@@ -21,8 +21,8 @@ export const LiveFingeringPanel: React.FC<LiveFingeringPanelProps> = ({
   className = ''
 }) => {
   // Compute fingering for current note
-  const targetPitch = currentNote?.pitch || 'D5';
-  const fingering = findFingering(targetPitch, diziKey, fingeringSystem);
+  const targetPitch = currentNote?.pitch || '';
+  const fingering = currentNote ? findFingering(targetPitch, diziKey, fingeringSystem) : null;
   const nextFingering = nextNote ? findFingering(nextNote.pitch, diziKey, fingeringSystem) : null;
 
   const holes: SixHoles = fingering?.holes || [1, 1, 1, 1, 1, 1];
@@ -35,7 +35,7 @@ export const LiveFingeringPanel: React.FC<LiveFingeringPanelProps> = ({
   );
 
   // Technique info for current note
-  const tech = currentNote?.technique ? DIZI_TECHNIQUES[currentNote.technique] : DIZI_TECHNIQUES.dieyin;
+  const tech = currentNote?.technique ? DIZI_TECHNIQUES[currentNote.technique] : null;
 
   const handlePlayCurrentNote = () => {
     if (fingering) {
@@ -66,23 +66,38 @@ export const LiveFingeringPanel: React.FC<LiveFingeringPanelProps> = ({
           </button>
         </div>
 
+        {!currentNote ? (
+          <div className="flex min-h-48 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[#31545B] bg-[#0E171A] p-5 text-center">
+            <span className="text-2xl text-[#36B39B]">♪</span>
+            <span className="text-sm font-medium text-[#F3F5F4]">Rest / no detected dizi note</span>
+            <span className="text-xs leading-relaxed text-[#94A3A7]">The score follows the actual note timestamps. The flute diagram resumes when a detected note begins.</span>
+          </div>
+        ) : <>
+
         {/* Main Central Layout: Dizi Diagram on Left + Pitch Info on Right */}
-        <div className="grid grid-cols-12 gap-3 items-center">
+        <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-center min-w-0">
           {/* Vertical Dizi Flute Diagram */}
-          <div className="col-span-5 flex justify-center py-1">
-            <DiziFingeringDiagram holes={holes} size="md" />
+          <div className="sm:col-span-5 min-w-0 flex flex-col items-center justify-center py-1">
+            {fingering ? (
+              <DiziFingeringDiagram holes={holes} size="md" />
+            ) : (
+              <div className="flex min-h-32 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-amber-500/30 bg-amber-500/5 p-3 text-center text-xs text-amber-200">
+                <span className="text-2xl">♪</span>
+                <span>No verified fingering for {targetPitch} on {diziKey} dizi</span>
+              </div>
+            )}
           </div>
 
           {/* Right Pitch Details */}
-          <div className="col-span-7 flex flex-col justify-center space-y-3.5 pl-1">
+          <div className="sm:col-span-7 flex min-w-0 flex-col justify-center space-y-3.5 sm:pl-1">
             <div>
               <div className="text-[11px] uppercase tracking-wider text-[#94A3A7] font-mono">
                 Pitch / 音高
               </div>
-              <div className="text-4xl font-extrabold text-[#B4F45A] font-mono tracking-tight flex items-baseline gap-2 mt-0.5">
+              <div className="text-3xl xl:text-4xl font-extrabold text-[#B4F45A] font-mono tracking-tight flex flex-wrap items-baseline gap-x-2 gap-y-0.5 mt-0.5">
                 {currentNote?.pitch || fingering?.pitch || 'D5'}
                 <span className="text-sm font-normal text-[#94A3A7]">
-                  {Math.round(fingering?.frequency || 587)} Hz
+                  {Math.round(midiToFrequency(pitchNameToMidi(targetPitch)))} Hz
                 </span>
               </div>
             </div>
@@ -94,7 +109,7 @@ export const LiveFingeringPanel: React.FC<LiveFingeringPanelProps> = ({
               <div className="text-xl font-bold text-[#F3F5F4] font-serif flex items-center gap-2 mt-0.5">
                 <span>Jianpu</span>
                 <span className="text-2xl text-[#36B39B] font-bold">
-                  {currentNote?.jianpu || fingering?.jianpuDegree || '5'}
+                  {currentNote?.jianpu || fingering?.jianpuDegree || '—'}
                 </span>
                 {fingering?.octaveDot ? (
                   <span className="text-xs text-[#94A3A7]">
@@ -112,7 +127,8 @@ export const LiveFingeringPanel: React.FC<LiveFingeringPanelProps> = ({
                 <span className="w-2 h-2 rounded-full bg-[#36B39B]" />
                 <span>
                   Breath:{' '}
-                  {fingering?.register === 'low'
+                  {!fingering ? 'No supported breath / fingering'
+                    : fingering.register === 'low'
                     ? 'Low (缓吹)'
                     : fingering?.register === 'high'
                     ? 'High (超吹)'
@@ -122,7 +138,7 @@ export const LiveFingeringPanel: React.FC<LiveFingeringPanelProps> = ({
             </div>
 
             {/* Hole Legend */}
-            <div className="pt-2 border-t border-[#1A2E33]/60 flex items-center gap-3 text-xs text-[#94A3A7]">
+            {fingering && <div className="pt-2 border-t border-[#1A2E33]/60 flex flex-wrap items-center gap-3 text-xs text-[#94A3A7]">
               <span className="flex items-center gap-1">
                 <span className="w-2.5 h-2.5 rounded-full bg-[#0D1114] border border-[#283B42] inline-block" />
                 <span>Closed 按闭</span>
@@ -131,15 +147,16 @@ export const LiveFingeringPanel: React.FC<LiveFingeringPanelProps> = ({
                 <span className="w-2.5 h-2.5 rounded-full bg-[#FAF5E8] border border-[#524334] inline-block" />
                 <span>Open 开放</span>
               </span>
-            </div>
+            </div>}
           </div>
         </div>
+        </>}
       </div>
 
       {/* Bottom Section: Technique Card + Upcoming Note */}
       <div className="space-y-3 mt-4 pt-3 border-t border-[#1A2E33]">
         {/* Chinese Dizi Technique Card */}
-        <div className="bg-[#0E171A] border border-[#1A2E33] rounded-lg p-3">
+        {tech ? <div className="bg-[#0E171A] border border-[#1A2E33] rounded-lg p-3">
           <div className="flex items-center justify-between text-xs font-semibold text-[#F3F5F4] mb-1">
             <span className="flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-[#B4F45A]" />
@@ -157,10 +174,12 @@ export const LiveFingeringPanel: React.FC<LiveFingeringPanelProps> = ({
           <p className="text-[11px] text-[#94A3A7] leading-relaxed">
             {tech.description}
           </p>
-        </div>
+        </div> : currentNote && <div className="rounded-lg border border-[#1A2E33] bg-[#0E171A] px-3 py-2 text-[11px] leading-relaxed text-[#94A3A7]">
+          Technique not classified. Pitch tracking alone cannot verify tonguing, trills, or ornaments.
+        </div>}
 
         {/* Upcoming Note Preview */}
-        {nextNote && (
+        {currentNote && nextNote && (
           <div className="bg-[#0E171A]/70 border border-[#1A2E33]/60 rounded-lg px-3 py-2 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="text-xs text-[#94A3A7]">Next:</span>
@@ -169,7 +188,7 @@ export const LiveFingeringPanel: React.FC<LiveFingeringPanelProps> = ({
               </span>
             </div>
 
-            <DiziFingeringDiagram holes={nextHoles} isCompact={true} />
+            {nextFingering && <DiziFingeringDiagram holes={nextHoles} isCompact={true} />}
           </div>
         )}
 

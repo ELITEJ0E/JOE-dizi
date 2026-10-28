@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { DiziKey, FingeringSystem, BreathRegister, FingeringEntry } from '../../types/dizi';
 import { getFingeringsFor, DIZI_KEYS_SPEC, calculateMusicalTonic } from '../../music/diziTheory';
 import { DiziFingeringDiagram } from '../DiziFingeringDiagram';
+import { StudioSelect } from '../StudioSelect';
 import { diziAudio } from '../../audio/diziSynth';
 import { Volume2, Filter, Info, Sparkles } from 'lucide-react';
 
@@ -82,17 +83,8 @@ export const FingeringLibraryView: React.FC<FingeringLibraryViewProps> = ({
             {/* Fingering System Selector */}
             <div className="flex items-center gap-1.5">
               <span className="text-xs text-[#94A3A7]">System 指法:</span>
-              <select
-                value={fingeringSystem}
-                onChange={(e) => onFingeringSystemChange(e.target.value as FingeringSystem)}
-                className="bg-[#0E171A] border border-[#1A2E33] rounded-lg px-2.5 py-1 text-xs text-[#F3F5F4] focus:outline-none focus:border-[#36B39B]"
-              >
-                {systems.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
+              <StudioSelect label="Fingering system" compact value={fingeringSystem} onChange={onFingeringSystemChange}
+                options={systems.map(system => ({ value: system.id, label: system.name, description: system.tonicInfo }))} />
             </div>
           </div>
         </div>

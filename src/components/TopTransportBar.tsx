@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { Song } from '../types/dizi';
 import {
   Play,
@@ -8,13 +8,13 @@ import {
   Repeat,
   Share2,
   Sliders,
-  ChevronDown,
   Volume2,
   VolumeX,
   Target,
   Menu
 } from 'lucide-react';
 import { diziAudio } from '../audio/diziSynth';
+import { StudioSelect } from './StudioSelect';
 
 interface TopTransportBarProps {
   onOpenMobileMenu?: () => void;
@@ -61,7 +61,6 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
   onSeek,
   className = ''
 }) => {
-  const [speedDropdownOpen, setSpeedDropdownOpen] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const waveformRef = useRef<HTMLDivElement>(null);
 
@@ -208,36 +207,16 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
           })}
         </div>
 
-        {/* Speed Selector (e.g. 0.75x) */}
-        <div className="relative shrink-0">
-          <button
-            onClick={() => setSpeedDropdownOpen(!speedDropdownOpen)}
-            disabled={!playbackAvailable}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-[#111D20] border border-[#1A2E33] text-xs font-mono text-[#F3F5F4] hover:border-[#36B39B] transition-colors disabled:opacity-40"
-          >
-            <span>{playbackSpeed}x</span>
-            <ChevronDown className="w-3 h-3 text-[#94A3A7]" />
-          </button>
-
-          {speedDropdownOpen && (
-            <div className="absolute right-0 top-full mt-1 w-20 bg-[#111D20] border border-[#1A2E33] rounded-lg shadow-xl z-50 py-1">
-              {speeds.map(s => (
-                <button
-                  key={s}
-                  onClick={() => {
-                    onSpeedChange(s);
-                    setSpeedDropdownOpen(false);
-                  }}
-                  className={`w-full px-3 py-1 text-left text-xs font-mono hover:bg-[#1A2E33] transition-colors ${
-                    s === playbackSpeed ? 'text-[#B4F45A] font-bold' : 'text-[#F3F5F4]'
-                  }`}
-                >
-                  {s}x
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        {/* Unified accessible dropdown — default speed is 1.0x. */}
+        <StudioSelect
+          label="Playback speed"
+          compact
+          className="w-[78px] shrink-0 font-mono"
+          value={String(playbackSpeed)}
+          onChange={(speed) => onSpeedChange(Number(speed))}
+          disabled={!playbackAvailable}
+          options={speeds.map(speed => ({ value: String(speed), label: `${speed.toFixed(speed === 1 ? 1 : speed === 0.5 || speed === 1.5 ? 1 : 2)}x` }))}
+        />
 
         {/* Loop Toggle */}
         <button

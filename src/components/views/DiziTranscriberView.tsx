@@ -2,9 +2,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Song, DiziKey, FingeringSystem, DiziNote } from '../../types/dizi';
 import { pitchDetector } from '../../audio/pitchDetector';
 import { analyzeMelodyInBackground } from '../../audio/analyzeMelody';
-import { midiToPitchName, findFingering } from '../../music/diziTheory';
+import { midiToPitchName, findFingering, DIZI_KEYS_SPEC, getJianpuForMidi, pitchNameToMidi, midiToFrequency } from '../../music/diziTheory';
 import { diziAudio } from '../../audio/diziSynth';
 import { getShareMetadata, parseMediaSource } from '../../utils/mediaSources';
+import { StudioSelect } from '../StudioSelect';
 import {
   Upload,
   Mic,
@@ -25,6 +26,7 @@ interface DiziTranscriberViewProps {
   onUpdateSong: (song: Song) => void;
   onLoadSong: (song: Song) => void;
   diziKey: DiziKey;
+  onDiziKeyChange: (key: DiziKey) => void;
   fingeringSystem: FingeringSystem;
 }
 
@@ -33,6 +35,7 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
   onUpdateSong,
   onLoadSong,
   diziKey,
+  onDiziKeyChange,
   fingeringSystem
 }) => {
   const [transcribeMethod, setTranscribeMethod] = useState<'upload' | 'mic' | 'url'>('upload');
@@ -42,6 +45,8 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
   const [statusError, setStatusError] = useState(false);
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [pitchDraft, setPitchDraft] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => () => pitchDetector.stopMicrophone(), []);
@@ -56,10 +61,11 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
       const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       ctx = new AudioCtx();
       const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
-      setStatusMessage('Extracting monophonic melody and note timestamps…');
+      setStatusMessage(`Tracking dizi melody within the ${diziKey}-key instrument range…`);
+      const { rangeStartMidi, rangeEndMidi } = DIZI_KEYS_SPEC[diziKey];
       const segments = await analyzeMelodyInBackground(audioBuffer, percent => {
         setStatusMessage(`Analyzing melody in the background… ${percent}%`);
-      });
+      }, { minMidi: rangeStartMidi, maxMidi: rangeEndMidi });
       if (segments.length === 0) {
         setStatusError(true);
         setStatusMessage('No clear single-note melody detected. Try a solo dizi or isolated melodic stem.');
@@ -68,14 +74,12 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
 
       const secondsPerBeat = 60 / Math.max(currentSong.bpm, 1);
       const notes: DiziNote[] = segments.map((segment, index) => {
-        const fingering = findFingering(segment.pitch, diziKey, fingeringSystem);
         const startingBeat = segment.startTime / secondsPerBeat;
         return {
           id: `transcribed_${Date.now()}_${index}`,
-          pitch: segment.pitch,
+          pitch: midiToPitchName(segment.midi, diziKey),
           midi: segment.midi,
-          jianpu: fingering?.jianpuDegree || '?',
-          octaveDot: fingering?.octaveDot || 0,
+          ...getJianpuForMidi(segment.midi, diziKey, fingeringSystem),
           duration: Math.max(0.25, Math.round(segment.duration / secondsPerBeat * 4) / 4),
           measureNumber: Math.floor(startingBeat / 4) + 1,
           beatInMeasure: Math.round((startingBeat % 4 + 1) * 100) / 100,
@@ -99,7 +103,7 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
         totalMeasures: Math.max(...notes.map(note => note.measureNumber), 1),
       };
       onLoadSong(newSong);
-      setStatusMessage(`Analyzed ${notes.length} notes from actual audio. Review the detected melody before exporting.`);
+      setStatusMessage(`Detected ${notes.length} candidate dizi notes in the selected range. Review note names against the audio before exporting; polyphonic mixes still need an isolated flute stem for reliable results.`);
       setStatusError(false);
     } catch (err) {
       console.error('Audio transcription failed', err);
@@ -187,13 +191,12 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
     let beat = 1;
 
     const addedNotes: DiziNote[] = recordedPitches.map((p, idx) => {
-      const fingering = findFingering(p, diziKey, fingeringSystem);
+      const midi = pitchNameToMidi(p);
       const note: DiziNote = {
         id: `mic_${Date.now()}_${idx}`,
         pitch: p,
-        midi: fingering?.midi || 74,
-        jianpu: fingering?.jianpuDegree || '1',
-        octaveDot: fingering?.octaveDot || 0,
+        midi,
+        ...getJianpuForMidi(midi, diziKey, fingeringSystem),
         duration: 1,
         measureNumber: measure,
         beatInMeasure: beat
@@ -221,13 +224,13 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
     const newMeasure = lastNote ? lastNote.measureNumber : 1;
     const newBeat = lastNote ? (lastNote.beatInMeasure % 4) + 1 : 1;
 
-    const fingering = findFingering('G5', diziKey, fingeringSystem);
+    const pitch = DIZI_KEYS_SPEC[diziKey].tongyinPitch;
+    const midi = pitchNameToMidi(pitch);
     const newNote: DiziNote = {
       id: `manual_${Date.now()}`,
-      pitch: 'G5',
-      midi: 79,
-      jianpu: fingering?.jianpuDegree || '1',
-      octaveDot: 0,
+      pitch,
+      midi,
+      ...getJianpuForMidi(midi, diziKey, fingeringSystem),
       duration: 1,
       measureNumber: newBeat === 1 ? newMeasure + 1 : newMeasure,
       beatInMeasure: newBeat
@@ -238,7 +241,25 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
       notes: [...currentSong.notes, newNote],
       totalMeasures: Math.max(currentSong.totalMeasures, newNote.measureNumber + 1)
     });
-    diziAudio.playNote(783.99, 0.8);
+    diziAudio.playNote(midiToFrequency(midi), 0.8);
+  };
+
+  const handleSavePitch = (noteId: string) => {
+    if (!/^[A-G](?:#|b)?-?\d$/.test(pitchDraft)) {
+      setStatusError(true);
+      setStatusMessage('Enter a valid sounding note, such as D5, F#5, or Bb4.');
+      return;
+    }
+    const midi = pitchNameToMidi(pitchDraft);
+    onUpdateSong({
+      ...currentSong,
+      notes: currentSong.notes.map(note => note.id === noteId
+        ? { ...note, pitch: midiToPitchName(midi, diziKey), midi, ...getJianpuForMidi(midi, diziKey, fingeringSystem) }
+        : note),
+    });
+    setEditingNoteId(null);
+    setStatusError(false);
+    setStatusMessage(`Corrected sounding pitch to ${midiToPitchName(midi, diziKey)}.`);
   };
 
   // Delete note from editor
@@ -304,6 +325,14 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
 
       {/* 2. Transcription Input Cards */}
       <div className="bg-[#111D20] border border-[#1A2E33] rounded-xl p-3 sm:p-5">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#264049] bg-[#0E171A] px-3 py-2.5">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-[#F3F5F4]">Dizi note range / 笛调</p>
+            <p className="mt-0.5 text-[11px] text-[#94A3A7]">Choose the flute in the recording before transcribing. {DIZI_KEYS_SPEC[diziKey].tongyinPitch}–{midiToPitchName(DIZI_KEYS_SPEC[diziKey].rangeEndMidi, diziKey)} will be tracked; backing instruments may still need isolation.</p>
+          </div>
+          <StudioSelect label="Dizi key to detect" compact value={diziKey} onChange={onDiziKeyChange}
+            options={(['G', 'D', 'C', 'F', 'A', 'E', 'Bb'] as DiziKey[]).map(key => ({ value: key, label: `${key} Dizi` }))} />
+        </div>
         {transcribeMethod === 'upload' && (
           <div className="flex flex-col items-center justify-center border-2 border-dashed border-[#1A2E33] hover:border-[#36B39B] rounded-xl p-4 sm:p-8 text-center transition-colors">
             <input
@@ -320,7 +349,7 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
             <p className="text-xs text-[#94A3A7] mt-1 max-w-md">
               {currentSong.source === 'youtube' || currentSong.source === 'suno'
                 ? `Use an audio file you have permission to analyze from the same ${currentSong.source === 'youtube' ? 'YouTube' : 'Suno'} song. Notes will synchronize to its playback timeline.`
-                : 'Upload a flute solo, vocal hum, or clean melodic stem (MP3/WAV and browser-supported formats). The pitch detector creates Jianpu notes and six-hole diagrams.'}
+                : 'Upload a solo dizi or isolated flute stem (MP3/WAV and browser-supported formats). The pitch tracker is range-constrained, but it cannot reliably separate flute from dense backing instruments.'}
             </p>
             <button
               onClick={() => fileInputRef.current?.click()}
@@ -452,7 +481,7 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
                 <th className="py-2 px-3">Duration</th>
                 <th className="py-2 px-3">Measure</th>
                 <th className="py-2 px-3">Technique</th>
-                <th className="py-2 px-3">Chord</th>
+                <th className="py-2 px-3">Fingering</th>
                 <th className="py-2 px-3 text-right">Actions</th>
               </tr>
             </thead>
@@ -462,7 +491,13 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
                 return (
                   <tr key={note.id} className="hover:bg-[#16272C]/50 transition-colors">
                     <td className="py-2 px-3 font-mono text-[#94A3A7]">{idx + 1}</td>
-                    <td className="py-2 px-3 font-mono font-bold text-[#B4F45A]">{note.pitch}</td>
+                    <td className="py-2 px-3 font-mono font-bold text-[#B4F45A]">
+                      {editingNoteId === note.id ? (
+                        <input aria-label="Correct pitch name" value={pitchDraft} onChange={event => setPitchDraft(event.target.value.trim())}
+                          onKeyDown={event => { if (event.key === 'Enter') handleSavePitch(note.id); if (event.key === 'Escape') setEditingNoteId(null); }}
+                          className="w-20 rounded border border-[#36B39B] bg-[#0B1014] px-2 py-1 text-xs outline-none" autoFocus />
+                      ) : note.pitch}
+                    </td>
                     <td className="py-2 px-3 font-serif font-bold text-base text-[#F3F5F4]">
                       {note.jianpu}
                       {note.octaveDot > 0 ? '̇' : note.octaveDot < 0 ? '̣' : ''}
@@ -477,10 +512,15 @@ export const DiziTranscriberView: React.FC<DiziTranscriberViewProps> = ({
                       {note.technique || 'Standard'}
                     </td>
                     <td className="py-2 px-3 font-mono font-semibold text-[#8C9C98]">
-                      {note.chord || '-'}
+                      {fingering ? `6-hole · ${fingering.registerZh}` : 'Not in library'}
                     </td>
                     <td className="py-2 px-3 text-right">
                       <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => editingNoteId === note.id ? handleSavePitch(note.id) : (setEditingNoteId(note.id), setPitchDraft(note.pitch))}
+                          className="px-2 py-1 rounded border border-[#264049] text-[#36B39B] hover:border-[#36B39B] transition-colors"
+                          title="Correct the detected pitch name"
+                        >{editingNoteId === note.id ? 'Save' : 'Edit'}</button>
                         <button
                           onClick={() => {
                             if (fingering) diziAudio.playNote(fingering.frequency, 0.6, note.technique);
