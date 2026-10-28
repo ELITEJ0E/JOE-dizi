@@ -9,6 +9,7 @@ import { useLanguage } from './i18n/LanguageContext';
 
 // Components
 import { Sidebar } from './components/Sidebar';
+import { MobileNavigation } from './components/MobileNavigation';
 import { TopTransportBar } from './components/TopTransportBar';
 import { SheetMusicView } from './components/SheetMusicView';
 import { LiveFingeringPanel } from './components/LiveFingeringPanel';
@@ -339,22 +340,17 @@ export default function App() {
         className="shrink-0 hidden md:flex"
       />
 
-      {mobileMenuOpen && (
-        <div className="fixed inset-0 z-50 md:hidden flex" role="dialog" aria-modal="true" aria-label="Navigation menu">
-          <button className="absolute inset-0 bg-black/70" aria-label="Close navigation" onClick={() => setMobileMenuOpen(false)} />
-          <Sidebar currentView={currentView} onSelectView={(view) => {
-            setMobileMenuOpen(false);
-            if (view === 'settings') setIsSettingsOpen(true);
-            else setCurrentView(view);
-          }} className="relative z-10 flex h-full max-w-[85vw]" />
-        </div>
-      )}
+      <MobileNavigation currentView={currentView} onSelectView={view => {
+        setMobileMenuOpen(false);
+        if (view === 'settings') setIsSettingsOpen(true);
+        else setCurrentView(view);
+      }} />
 
       {/* 2. Main Content & Workstation Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top Transport & Song Bar */}
         <TopTransportBar
-          onOpenMobileMenu={() => setMobileMenuOpen(true)}
+          onOpenMobileMenu={() => window.dispatchEvent(new Event('joe-dizi:open-navigation'))}
           playbackAvailable={usesSourcePlayback || currentSong.notes.length > 0}
           currentSong={currentSong}
           isPlaying={isPlaying}
