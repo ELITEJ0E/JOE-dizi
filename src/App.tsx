@@ -52,7 +52,6 @@ export default function App() {
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
   const [isLooping, setIsLooping] = useState<boolean>(false);
-  const [isPracticeMode, setIsPracticeMode] = useState<boolean>(true);
   const [mediaTime, setMediaTime] = useState(0);
   const [mediaDuration, setMediaDuration] = useState(0);
   const [youtubeSeekRequest, setYoutubeSeekRequest] = useState<{ seconds: number; token: number } | null>(null);
@@ -361,11 +360,10 @@ export default function App() {
           onSpeedChange={setPlaybackSpeed}
           isLooping={isLooping}
           onLoopToggle={() => setIsLooping(!isLooping)}
-          isPracticeMode={isPracticeMode}
-          onPracticeModeToggle={() => setIsPracticeMode(!isPracticeMode)}
           onOpenExport={() => setIsExportOpen(true)}
           onOpenSettings={() => setIsSettingsOpen(true)}
           progressPercent={progressPercent}
+          durationSeconds={totalDurationSeconds}
           currentTimeFormatted={formatTime(currentSeconds)}
           totalDurationFormatted={formatTime(totalDurationSeconds)}
           onSeek={handleSeek}
