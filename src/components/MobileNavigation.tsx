@@ -28,6 +28,11 @@ export const MobileNavigation: React.FC<Props> = ({currentView,onSelectView}) =>
   const [open,setOpen] = useState(false);
   const drag = useDragControls();
   useEffect(() => {
+    const handler = () => setOpen(true);
+    window.addEventListener('joe-dizi:open-navigation', handler);
+    return () => window.removeEventListener('joe-dizi:open-navigation', handler);
+  }, []);
+  useEffect(() => {
     if (!open) return;
     const original = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
