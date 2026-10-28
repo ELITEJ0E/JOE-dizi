@@ -1,5 +1,11 @@
 {
+  "functions": {
+    "api/**/*.ts": { "maxDuration": 60 }
+  },
   "rewrites": [
+    { "source": "/api/youtube/:path*", "destination": "https://chord-extractor-1.onrender.com/:path*" },
+    { "source": "/api/suno-audio/:clipId", "destination": "/api/suno-audio?clipId=:clipId" },
+    { "source": "/api/suno-rights/:clipId", "destination": "/api/suno-rights?clipId=:clipId" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }
