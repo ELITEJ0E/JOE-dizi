@@ -137,3 +137,27 @@
   .joe-dizi-transport .joe-transport-hide-mobile{display:none!important}
   [data-score-scroll-viewport]{padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))!important}
 }
+
+
+/* Smooth release-to-seek progress tracks, shared by the top player and timeline. */
+.joe-deferred-scrub{touch-action:none;-webkit-user-select:none;user-select:none;position:relative}
+.joe-deferred-scrub.scrubbing{border-color:#B4F45A!important;box-shadow:0 0 0 1px #B4F45A66,0 0 12px #B4F45A22}
+.joe-deferred-scrub.scrubbing::after{
+  content:attr(data-seek-preview);position:absolute;z-index:65;
+  left:clamp(23px,var(--seek-percent,0%),calc(100% - 23px));bottom:calc(100% + 7px);
+  transform:translateX(-50%);padding:4px 7px;white-space:nowrap;
+  font:700 11px/1.1 ui-monospace,SFMono-Regular,monospace;color:#091014;
+  border-radius:6px;background:#B4F45A;box-shadow:0 3px 14px #0009;pointer-events:none;
+}
+/* Keep a real drag-and-release duration scrubber visible on mobile. */
+@media(max-width:767px){
+  .joe-dizi-transport{flex-wrap:wrap!important;overflow:visible!important;row-gap:3px!important}
+  .joe-transport-desktop-seek{display:none!important}
+  .joe-transport-mobile-seek-row{
+    display:flex!important;align-items:center;gap:8px;flex:1 0 100%;
+    order:10;width:100%;min-width:0;height:31px;padding:0 3px;
+  }
+  .joe-transport-mobile-seek-row .joe-deferred-scrub{flex:1;min-width:0}
+  .joe-transport-time{flex:none;font:600 10px/1.2 ui-monospace,monospace;color:#9BAAAA;white-space:nowrap}
+}
+@media(min-width:768px){.joe-transport-mobile-seek-row{display:none!important}}
