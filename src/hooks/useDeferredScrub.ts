@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { PointerEvent as ReactPointerEvent, KeyboardEvent as ReactKeyboardEvent } from 'react';
+import type { PointerEvent as ReactPointerEvent, KeyboardEvent as ReactKeyboardEvent, CSSProperties } from 'react';
 
 /**
  * JOE Music-style deferred scrubber:
@@ -7,7 +7,7 @@ import type { PointerEvent as ReactPointerEvent, KeyboardEvent as ReactKeyboardE
  * - Actual player seek fires ONCE on pointerup; cancel reverts without seeking.
  * - Keyboard navigation remains accessible.
  */
-export function useDeferredScrub(progressPercent: number, onSeek: (percent: number) => void) {
+export function useDeferredScrub(progressPercent: number, onSeek: (percent: number) => void, previewLabel?: (percent: number) => string) {
   const trackRef = useRef<HTMLDivElement>(null);
   const activePointer = useRef<number | null>(null);
   const bounds = useRef({ left: 0, width: 1 });
@@ -21,8 +21,9 @@ export function useDeferredScrub(progressPercent: number, onSeek: (percent: numb
     lastPreview.current = value;
     trackRef.current?.style.setProperty('--seek-percent', value.toFixed(3) + '%');
     trackRef.current?.setAttribute('aria-valuenow', String(Math.round(value)));
+    if (trackRef.current) trackRef.current.dataset.seekPreview = previewLabel?.(value) ?? Math.round(value) + '%';
     return value;
-  }, []);
+  }, [previewLabel]);
 
   useEffect(() => {
     committed.current = progressPercent;
@@ -93,6 +94,6 @@ export function useDeferredScrub(progressPercent: number, onSeek: (percent: numb
     trackRef,
     dragging,
     handlers: { onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onKeyDown },
-    style: { '--seek-percent': clamp(progressPercent).toFixed(3) + '%' } as React.CSSProperties,
+    style: { '--seek-percent': clamp(progressPercent).toFixed(3) + '%' } as CSSProperties,
   };
 }
