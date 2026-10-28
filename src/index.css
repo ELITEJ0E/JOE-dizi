@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-main: #0B1014;
+    --bg-sidebar: #091014;
+    --bg-card: #111D20;
+    --accent-lime: #B4F45A;
+    --accent-jade: #36B39B;
+    --text-primary: #F3F5F4;
+    --text-muted: #94A3A7;
+    --sheet-bg: #F6F3EA;
+    --sheet-text: #1D2928;
+  }
+
+  body {
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  }
+}
+
+/* Custom Chinese Calligraphy & Serif styling */
+.font-calligraphy {
+  font-family: 'Noto Serif SC', 'Songti SC', 'SimSun', serif;
+}
+
+.font-tabular {
+  font-variant-numeric: tabular-nums;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Scrollbar customization for audio workstation feel */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0B1014;
+}
+::-webkit-scrollbar-thumb {
+  background: #1B2B2F;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #36B39B;
+}
+
+/* Xuan paper subtle texture pattern */
+.xuan-paper {
+  background-color: #F6F3EA;
+  background-image: radial-gradient(#E8E3D5 0.75px, transparent 0.75px), radial-gradient(#E8E3D5 0.75px, #F6F3EA 0.75px);
+  background-size: 30px 30px;
+  background-position: 0 0, 15px 15px;
+}
+
+/* Traditional Chinese red seal stamp style */
+.seal-stamp {
+  border: 1.5px solid #C23E32;
+  color: #C23E32;
+  font-family: 'Noto Serif SC', serif;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  text-shadow: 0 0 1px rgba(194, 62, 50, 0.3);
+}

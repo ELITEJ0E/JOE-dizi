@@ -1,0 +1,6 @@
+{
+  "name": "JOE Dizi Studio — 智能笛子学习与转谱平台",
+  "description": "Professional Chinese Dizi (bamboo flute) learning and transcription platform with real-time 6-hole fingerings, Jianpu and Western notation sync, audio synthesis, tuner, and practice studio.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
