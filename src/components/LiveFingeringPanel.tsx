@@ -40,9 +40,7 @@ export const LiveFingeringPanel: React.FC<LiveFingeringPanelProps> = ({
   const tech = currentNote?.technique ? DIZI_TECHNIQUES[currentNote.technique] : null;
 
   const handlePlayCurrentNote = () => {
-    if (fingering) {
-      diziAudio.playNote(fingering.frequency, 1.2, currentNote?.technique);
-    }
+    if (currentNote) diziAudio.playNote(midiToFrequency(currentNote.midi), 1.2, currentNote.technique);
   };
 
   return (

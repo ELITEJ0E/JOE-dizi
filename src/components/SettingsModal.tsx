@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { DiziKey, FingeringSystem } from '../types/dizi';
+import { DIZI_KEYS_SPEC, midiToFrequency, pitchNameToMidi } from '../music/diziTheory';
 import { diziAudio } from '../audio/diziSynth';
 import { X, Sliders, Volume2, Sparkles, Check } from 'lucide-react';
 
@@ -36,7 +37,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const handleTestSound = () => {
-    diziAudio.playNote(783.99, 1.2, 'dieyin'); // G5 with dieyin
+    diziAudio.playNote(midiToFrequency(pitchNameToMidi(DIZI_KEYS_SPEC[diziKey].thirdHolePitch)), 1.6);
   };
 
   return (
@@ -73,16 +74,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
             <input
               type="range"
-              min="10"
+              min="0"
               max="100"
               value={membraneResonance}
               onChange={(e) => handleMembraneChange(Number(e.target.value))}
               className="w-full h-1.5 bg-[#0E171A] rounded-lg appearance-none cursor-pointer accent-[#B4F45A]"
             />
             <div className="flex justify-between text-[10px] text-[#6E7E81] font-mono">
-              <span>Dry Wood (木质素音)</span>
+              <span>Off · Dry Wood</span>
               <span>Tight Dimo (紧膜)</span>
-              <span>Vibrant Buzz (松透脆亮)</span>
+              <span>Strong Buzz (松透脆亮)</span>
             </div>
             <button
               onClick={handleTestSound}
@@ -91,6 +92,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <Volume2 className="w-3.5 h-3.5" />
               <span>Audition Membrane Buzz (试听笛音)</span>
             </button>
+            <p className="text-[11px] leading-relaxed text-[#94A3A7]">Compare 0% and 100% while auditioning. This also changes notes currently playing.</p>
           </div>
 
           {/* 2. Sheet Notation Preference */}

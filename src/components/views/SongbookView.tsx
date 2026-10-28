@@ -2,19 +2,37 @@ import React, { useState } from 'react';
 import { Song } from '../../types/dizi';
 import { PRESET_SONGS } from '../../data/presetSongs';
 import { readUserSongs } from '../../utils/songStorage';
-import { BookMarked, Search, Play, Download, Upload, Music, Sparkles } from 'lucide-react';
+import { Search, Play, Download, Upload, Trash2, X } from 'lucide-react';
+import { useLanguage } from '../../i18n/LanguageContext';
 
 interface SongbookViewProps {
   currentSong: Song;
   onSelectSong: (song: Song) => void;
+  onDeleteSong: (songId: string) => Promise<boolean>;
 }
 
 export const SongbookView: React.FC<SongbookViewProps> = ({
   currentSong,
-  onSelectSong
+  onSelectSong,
+  onDeleteSong
 }) => {
+  const { t } = useLanguage();
   const [searchQuery, setSearchQuery] = useState('');
   const [songs, setSongs] = useState<Song[]>(() => [...readUserSongs(), ...PRESET_SONGS]);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteErrorId, setDeleteErrorId] = useState<string | null>(null);
+
+  const handleDeleteSong = async (songId: string) => {
+    setDeletingId(songId);
+    setDeleteErrorId(null);
+    try {
+      if (await onDeleteSong(songId)) {
+        setSongs(previous => previous.filter(song => song.id !== songId));
+        setConfirmDeleteId(null);
+      } else setDeleteErrorId(songId);
+    } finally { setDeletingId(null); }
+  };
 
   const filteredSongs = songs.filter(
     s =>
@@ -24,13 +42,15 @@ export const SongbookView: React.FC<SongbookViewProps> = ({
   );
 
   const handleExportSongJson = (s: Song) => {
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(s, null, 2));
+    const file = new Blob([JSON.stringify({ ...s, audioUrl: undefined }, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(file);
     const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute('href', dataStr);
-    downloadAnchor.setAttribute('download', `${s.titleEn.toLowerCase().replace(/\s+/g, '_')}_dizi_score.json`);
+    downloadAnchor.href = url;
+    downloadAnchor.download = `${(s.titleEn || 'dizi').toLowerCase().replace(/[^a-z0-9_-]+/g, '_')}_dizi_score.json`;
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 2000);
   };
 
   const handleImportJson = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -57,11 +77,10 @@ export const SongbookView: React.FC<SongbookViewProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#1A2E33]">
         <div>
           <h2 className="text-xl sm:text-2xl font-serif font-bold text-[#F3F5F4] flex items-center gap-2">
-            <span>My Songbook</span>
-            <span className="text-sm font-calligraphy text-[#36B39B]">名曲谱库与曲目管理</span>
+            <span>{t('My Songbook', '我的曲库')}</span>
           </h2>
           <p className="text-xs text-[#94A3A7] mt-1">
-            Curated traditional Chinese flute masterworks, modern arrangements, and custom transcribed pieces.
+            {t('Traditional flute repertoire and locally saved imported scores.', '传统笛曲和保存在本机的导入乐谱。')}
           </p>
         </div>
 
@@ -71,7 +90,7 @@ export const SongbookView: React.FC<SongbookViewProps> = ({
             <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3A7]" />
             <input
               type="text"
-              placeholder="Search songs..."
+              placeholder={t('Search songs…', '搜索曲目…')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="bg-[#111D20] border border-[#1A2E33] rounded-lg pl-8 pr-3 py-1.5 text-xs text-[#F3F5F4] focus:outline-none focus:border-[#36B39B]"
@@ -81,7 +100,7 @@ export const SongbookView: React.FC<SongbookViewProps> = ({
           {/* Import JSON button */}
           <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#111D20] border border-[#1A2E33] text-xs text-[#94A3A7] hover:text-[#F3F5F4] cursor-pointer transition-colors">
             <Upload className="w-3.5 h-3.5" />
-            <span>Import JSON</span>
+            <span>{t('Import JSON', '导入 JSON')}</span>
             <input type="file" accept=".json" onChange={handleImportJson} className="hidden" />
           </label>
         </div>
@@ -142,7 +161,7 @@ export const SongbookView: React.FC<SongbookViewProps> = ({
                     ♩={song.bpm}
                   </span>
                   <span className="px-2 py-0.5 rounded bg-[#16272C]">
-                    {song.notes.length} notes
+                    {song.notes.length} {t('notes', '个音符')}
                   </span>
                 </div>
               </div>
@@ -158,17 +177,34 @@ export const SongbookView: React.FC<SongbookViewProps> = ({
                   }`}
                 >
                   <Play className="w-3.5 h-3.5 fill-current" />
-                  <span>{isCurrent ? 'Current Workstation Song' : 'Load into Studio'}</span>
+                  <span>{isCurrent ? t('Current Song', '当前乐曲') : t('Load into Studio', '载入工作台')}</span>
                 </button>
 
-                <button
-                  onClick={() => handleExportSongJson(song)}
-                  className="p-1.5 rounded-lg text-[#94A3A7] hover:text-[#F3F5F4] hover:bg-[#16272C] transition-colors"
-                  title="Export Score JSON"
-                >
-                  <Download className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => handleExportSongJson(song)}
+                    className="p-1.5 rounded-lg text-[#94A3A7] hover:text-[#F3F5F4] hover:bg-[#16272C] transition-colors"
+                    title={t('Export Score JSON', '导出乐谱 JSON')}
+                    aria-label={t(`Export ${song.titleEn}`, `导出 ${song.titleEn}`)}
+                  >
+                    <Download className="w-4 h-4" />
+                  </button>
+                  {song.source !== 'preset' && <button
+                    onClick={() => setConfirmDeleteId(song.id)}
+                    className="p-1.5 rounded-lg text-[#94A3A7] hover:text-red-300 hover:bg-red-500/10 transition-colors"
+                    aria-label={t(`Delete ${song.titleEn}`, `删除 ${song.titleEn}`)}
+                    title={t('Delete saved song', '删除已保存的曲目')}
+                  ><Trash2 className="w-4 h-4" /></button>}
+                </div>
               </div>
+              {confirmDeleteId === song.id && <div role="group" aria-label={t('Confirm deletion', '确认删除')} className="mt-3 rounded-lg border border-red-600/40 bg-red-500/10 p-2.5 text-xs">
+                <p className="mb-2 text-red-100">{t('Delete this song and its offline audio from this device?', '从本机删除此乐曲及其离线音频？')}</p>
+                <div className="flex items-center justify-end gap-2">
+                  <button onClick={() => setConfirmDeleteId(null)} disabled={deletingId === song.id} className="flex items-center gap-1 rounded px-2 py-1 text-[#F3F5F4] hover:bg-white/10"><X className="h-3 w-3" />{t('Cancel', '取消')}</button>
+                  <button onClick={() => void handleDeleteSong(song.id)} disabled={deletingId === song.id} className="rounded bg-red-500 px-3 py-1 font-semibold text-white disabled:opacity-50">{deletingId === song.id ? t('Deleting…', '正在删除…') : t('Delete', '删除')}</button>
+                </div>
+              </div>}
+              {deleteErrorId === song.id && <p role="alert" className="mt-2 text-xs text-red-300">{t('Could not delete this saved song.', '无法删除此曲目。')}</p>}
             </div>
           );
         })}
